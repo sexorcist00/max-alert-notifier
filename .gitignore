@@ -1,3 +1,4 @@
+# python watcher
 config.toml
 cache/
 logs/
@@ -7,3 +8,11 @@ __pycache__/
 *.egg-info/
 .venv/
 .pytest_cache/
+
+# android app
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.apk
