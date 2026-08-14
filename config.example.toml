@@ -1,0 +1,38 @@
+# Copy to config.toml and edit. config.toml is gitignored on purpose.
+
+[max]
+# Phone number of YOUR MAX account, international format.
+phone = "+79990000000"
+# Session (SQLite) lives here. Treat it as a password: it is a live account token.
+work_dir = "cache"
+session_name = "main.db"
+
+[watch]
+# Chat to watch. Run `python -m max_alert --list-chats` (or --discover) to find the id.
+# Empty chat_ids AND empty chat_title_contains = watch every chat.
+chat_ids = []
+# Alternative to ids: any chat whose title contains one of these (case-insensitive).
+# Resolved to ids once at startup and logged.
+chat_title_contains = []
+
+# What counts as an alarm. keywords = substring match; regex wins if both are set.
+keywords = ["тревога"]
+regex = ""
+case_sensitive = false
+
+# Only these sender ids may trigger the alarm. Empty = anyone. Ids come from --discover.
+from_senders = []
+# Never alarm on messages sent from this account itself.
+ignore_own_messages = true
+
+[alarm]
+# Any file Android can play. Replace with e.g. "/system/media/audio/alarms/Argon.ogg".
+sound = "assets/alarm.wav"
+# Volume level of the "music" stream (see `termux-volume`), clamped to the device maximum.
+volume = 15
+# Hard stop, so a missed alarm cannot ring until the battery dies.
+loop_seconds = 300
+# 0 disables vibration.
+vibrate_ms = 1200
+# One incident must not ring twice: ignore further matches for this long.
+cooldown_seconds = 30

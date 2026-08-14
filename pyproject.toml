@@ -1,0 +1,22 @@
+[project]
+name = "max-alert"
+version = "0.1.0"
+description = "Watches one MAX messenger chat and raises a loud alarm on the phone when a matching message arrives"
+requires-python = ">=3.10"
+dependencies = ["maxapi-python>=2.4.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+max-alert = "max_alert.main:cli"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["max_alert"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
