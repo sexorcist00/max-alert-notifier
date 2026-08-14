@@ -4,7 +4,11 @@ on:
   push:
     branches: [main]
     paths: ["android/**", ".github/workflows/android.yml"]
+    tags: ["v*"]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -23,7 +27,22 @@ jobs:
         working-directory: android
         run: ./gradlew testDebugUnitTest assembleDebug
 
+      - name: Name the APK after the version
+        id: apk
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [ "$GITHUB_REF_TYPE" = "tag" ] || version="dev-${GITHUB_SHA::7}"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "max-alert-${version}.apk"
+          echo "path=max-alert-${version}.apk" >> "$GITHUB_OUTPUT"
+
       - uses: actions/upload-artifact@v4
         with:
           name: max-alert-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ steps.apk.outputs.path }}
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.apk.outputs.path }}
+          generate_release_notes: true

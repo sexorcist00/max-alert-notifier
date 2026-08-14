@@ -16,6 +16,19 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        // A fixed sideload key, committed on purpose: without it every CI build would be
+        // signed by a freshly generated debug key and Android would refuse to install the
+        // update over the previous version. It is a debug key with the well-known password,
+        // not a secret -- it proves nothing about who built the APK.
+        getByName("debug") {
+            storeFile = rootProject.file("keystore/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
