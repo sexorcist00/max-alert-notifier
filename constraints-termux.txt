@@ -1,0 +1,16 @@
+# Termux / Android, CPython 3.14.
+#
+# pydantic-core is Rust, and PyPI has no android_24_arm64_v8a wheel for it: pip falls back to
+# building from source, wants a Rust toolchain, and dies. The Termux User Repository publishes a
+# ready wheel -- but only for 2.41.5, and pydantic pins its core version exactly, so the pair below
+# has to be pinned together.
+#
+# Use with:
+#   pip install -e . -c constraints-termux.txt \
+#       --extra-index-url https://termux-user-repository.github.io/pypi/
+#
+# When TUR publishes a newer pydantic-core, raise both lines together:
+#   https://termux-user-repository.github.io/pypi/pydantic-core/
+
+pydantic==2.12.5
+pydantic-core==2.41.5

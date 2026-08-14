@@ -40,11 +40,25 @@ MAX** — тот же, которым пользуется веб-версия. 
 
 ```bash
 pkg update && pkg upgrade
-pkg install python git termux-api
-git clone <URL этого репозитория> ~/max-alert
+pkg install python clang git termux-api
+git clone https://github.com/sexorcist00/max-alert-notifier.git ~/max-alert
 cd ~/max-alert
-pip install -e .
+pip install -e . -c constraints-termux.txt \
+    --extra-index-url https://termux-user-repository.github.io/pypi/
 ```
+
+**Два хвоста в этой команде обязательны, и вот почему.** Termux идёт с Python 3.14, а на PyPI под
+`android/arm64 + cp314` нет собранного `pydantic-core` — он написан на Rust, и pip лезет собирать его из
+исходников: просит Rust-тулчейн, а с ним минут 15–30 сборки и частое падение по памяти. Готовое колесо
+лежит в PyPI-индексе [Termux User Repository](https://termux-user-repository.github.io/pypi/pydantic-core/),
+но только версии `2.41.5`, а pydantic прибивает версию своего ядра намертво — поэтому пара
+`pydantic 2.12.5 / pydantic-core 2.41.5` зафиксирована в `constraints-termux.txt`.
+
+Без `-c constraints-termux.txt` pip возьмёт свежий pydantic, потребует `pydantic-core 2.46`, готового
+колеса для него нет — и всё закончится `Rust not found` и `Failed to build pydantic-core`.
+
+`clang` нужен для двух мелких зависимостей (`msgpack`, `zstandard`), у которых под Android колёс тоже нет,
+но они на C и собираются за минуту-две.
 
 Проверка, что Termux:API отвечает (должно завибрировать):
 
@@ -54,6 +68,15 @@ termux-vibrate -d 500
 
 Если команда «висит» или молчит — откройте приложение Termux:API и выдайте ему разрешения; без этого
 дальше идти нет смысла.
+
+### Если установка всё-таки падает
+
+| Что в ошибке | Что делать |
+| --- | --- |
+| `Rust not found`, `Failed to build pydantic-core` | пропущен `-c constraints-termux.txt` или `--extra-index-url` — повторите команду целиком |
+| падает сборка `zstandard` | `pkg install clang libzstd` и повторить |
+| падает сборка `msgpack` | `MSGPACK_PUREPYTHON=1 pip install -e . -c constraints-termux.txt --extra-index-url https://termux-user-repository.github.io/pypi/` |
+| `No matching distribution found for pydantic-core==2.41.5` | TUR обновился; посмотрите [список колёс](https://termux-user-repository.github.io/pypi/pydantic-core/), возьмите свежее `cp314-android_24_arm64_v8a` и поднимите обе строки в `constraints-termux.txt` (нужная версия pydantic — та, что пинует именно это ядро) |
 
 ---
 
@@ -272,9 +295,12 @@ pip install -U maxapi-python
 ## Тесты
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev]" -c constraints-termux.txt \
+    --extra-index-url https://termux-user-repository.github.io/pypi/
 pytest
 ```
+
+(на обычном Linux/macOS хватает `pip install -e ".[dev]"` — ограничения нужны только на Android)
 
 Тесты офлайновые и детерминированные: матчер, антидребезг, разбор конфига. Всё, что касается звука и
 подключения к MAX, проверяется на телефоне командами `--test-alarm` и `--discover`.
