@@ -20,8 +20,10 @@ import ru.maxalert.notifier.ui.Primitives
  * produces surfaces that look right in a screenshot and wash out on a phone at night.
  */
 private val LightColors = lightColorScheme(
-    primary = Color(Primitives.RED_700),
+    primary = Color(Primitives.GRAPHITE_800),
     onPrimary = Color(Primitives.NEUTRAL_0),
+    secondary = Color(Primitives.GRAPHITE_600),
+    onSecondary = Color(Primitives.NEUTRAL_0),
     error = Color(Primitives.RED_700),
     onError = Color(Primitives.NEUTRAL_0),
     background = Color(Primitives.NEUTRAL_0),
@@ -33,8 +35,10 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(Primitives.RED_300),
+    primary = Color(Primitives.GRAPHITE_300),
     onPrimary = Color(Primitives.NEUTRAL_900),
+    secondary = Color(Primitives.GRAPHITE_300),
+    onSecondary = Color(Primitives.NEUTRAL_900),
     error = Color(Primitives.RED_300),
     onError = Color(Primitives.NEUTRAL_900),
     background = Color(Primitives.NEUTRAL_950),

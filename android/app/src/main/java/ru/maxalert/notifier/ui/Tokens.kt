@@ -22,6 +22,12 @@ internal object Primitives {
     const val GREEN_800 = 0xFF2E7D32
     const val RED_300 = 0xFFFF6B60
 
+    // The interface itself is graphite: red is spent only on an actual alert, so the alert
+    // still reads as one. An app painted in its own alarm colour has no alarm colour left.
+    const val GRAPHITE_800 = 0xFF2F3437
+    const val GRAPHITE_300 = 0xFFC8CDD0
+    const val GRAPHITE_600 = 0xFF5A6266
+
     const val NEUTRAL_0 = 0xFFFFFFFF
     const val NEUTRAL_900 = 0xFF1A1A1A
     const val NEUTRAL_950 = 0xFF121212

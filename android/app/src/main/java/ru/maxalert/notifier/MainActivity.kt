@@ -73,6 +73,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
@@ -156,7 +157,13 @@ private fun HomeScreen() {
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text("Оповещение о тревоге") },
+                    title = {
+                        Text(
+                            "Оповещение о тревоге",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
                     actions = {
                         // The master switch belongs where it is always reachable: whether the
                         // phone is on watch is the one thing worth knowing from any tab.
@@ -251,8 +258,16 @@ private fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
         )
         Spacer(Modifier.width(Spacing.md))
         Column(Modifier.weight(1f)) {
-            Text(status.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-            Text(status.detail, style = MaterialTheme.typography.bodySmall)
+            Text(
+                status.title,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                status.detail,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+            )
             ConnectionProbe.ageText(now)?.let { age ->
                 Text(age, style = MaterialTheme.typography.labelSmall)
             }
@@ -399,10 +414,12 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
             }
           }
         }
-        OutlinedButton(
-            onClick = { AlarmPreview.vibrate(context, settings) },
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("Почувствовать ритм") }
+        if (patternsOpen) {
+            OutlinedButton(
+                onClick = { AlarmPreview.vibrate(context, settings) },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Почувствовать ритм") }
+        }
     }
 
     SectionCard("Звук") {
@@ -440,11 +457,13 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
             },
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Выбрать свой файл") }
-        Text(
-            "Звонок будильника из настроек телефона не используется: тревога должна звучать " +
-                "одинаково всегда.",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        if (soundsOpen) {
+            Text(
+                "Звонок будильника из настроек телефона не используется: тревога должна " +
+                    "звучать одинаково всегда.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 
     SectionCard("Вибрация и свет") {
@@ -991,9 +1010,12 @@ private fun CurrentChoiceRow(
     ) {
         Column(Modifier.weight(1f)) {
             Text(value, fontWeight = FontWeight.Bold)
-            note?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+            if (open) note?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
         }
         trailing?.invoke()
+        // Two targets side by side need a gap, or the play button and "Изменить" get
+        // hit interchangeably.
+        Spacer(Modifier.width(Spacing.sm))
         TextButton(onClick = onToggle) { Text(if (open) "Свернуть" else "Изменить") }
     }
 }
