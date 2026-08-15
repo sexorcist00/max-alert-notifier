@@ -40,7 +40,7 @@ object ConfigSummary {
         val alarm = buildString {
             append("Звоню «$soundLabel»")
             append(", ритм «${settings.pattern.label}»")
-            append(", не дольше ${minutes(settings.loopSeconds)}")
+            append(", не дольше ${Durations.label(settings.loopSeconds)}")
             if (settings.vibrate) append(", с вибрацией")
             if (settings.flashlight) append(" и фонариком")
         }
@@ -49,10 +49,4 @@ object ConfigSummary {
     }
 
     private fun quote(words: List<String>): String = words.joinToString(", ") { "«$it»" }
-
-    private fun minutes(seconds: Int): String = when {
-        seconds < 60 -> "$seconds с"
-        seconds % 60 == 0 -> "${seconds / 60} мин"
-        else -> "${seconds / 60} мин ${seconds % 60} с"
-    }
 }

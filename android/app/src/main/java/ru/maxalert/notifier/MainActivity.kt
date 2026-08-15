@@ -18,6 +18,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,13 +33,14 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PlayArrow
@@ -70,6 +73,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -279,10 +284,19 @@ private fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
                 if (session.loggedIn) scope.launch { ConnectionProbe.run(context) }
             },
         ) {
-            Icon(
-                imageVector = Icons.Filled.Refresh,
-                contentDescription = "Обновить состояние и проверить сессию",
-            )
+            // While the probe is out, the button has to look busy: a refresh icon that does
+            // nothing visible for two seconds reads as a button that did not work.
+            if (ConnectionProbe.busy) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(Spacing.inlineIcon),
+                    strokeWidth = Spacing.hairline,
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.Refresh,
+                    contentDescription = "Обновить состояние и проверить сессию",
+                )
+            }
         }
     }
 }
@@ -313,17 +327,37 @@ private fun AlertStateCard() {
                 color = Color(state.level.onColorArgb),
                 style = MaterialTheme.typography.bodySmall,
             )
-            Button(
-                onClick = {
-                    AlarmController.stop(context)
-                    AlertState.clear(context)
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(state.level.onColorArgb),
-                    contentColor = Color(state.level.colorArgb),
-                ),
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Снять вручную") }
+            val onCard = ButtonDefaults.buttonColors(
+                containerColor = Color(state.level.onColorArgb),
+                contentColor = Color(state.level.colorArgb),
+            )
+            // While it is still sounding, silencing and lifting are two different decisions,
+            // and one button cannot mean both: whoever reaches for quiet at three in the
+            // morning must not lose the standing alert by pressing it.
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                if (state.level.rings && !state.silenced) {
+                    Button(
+                        onClick = { AlarmController.stop(context) },
+                        colors = onCard,
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Заглушить", maxLines = 1) }
+                }
+                Button(
+                    onClick = {
+                        AlarmController.stop(context)
+                        AlertState.clear(context)
+                    },
+                    colors = onCard,
+                    modifier = Modifier.weight(1f),
+                ) { Text("Снять", maxLines = 1) }
+            }
+            if (state.level.rings && !state.silenced) {
+                Text(
+                    "«Заглушить» гасит звук, состояние остаётся. «Снять» отменяет тревогу целиком.",
+                    color = Color(state.level.onColorArgb),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }
@@ -384,6 +418,31 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
 
     var patternsOpen by remember { mutableStateOf(false) }
     var soundsOpen by remember { mutableStateOf(false) }
+
+    // The reason to open this tab is to find out how it will sound, so the button that shows
+    // it comes first. It used to sit at the bottom of "Продолжительность", where nothing about
+    // the heading suggested a full rehearsal was hiding under it.
+    SectionCard("Проверка") {
+        Button(
+            onClick = {
+                AlarmPreview.stop(context)
+                AlarmController.trigger(
+                    context,
+                    settings.copy(loopSeconds = minOf(settings.loopSeconds, 30)),
+                    "Проверка",
+                    "Так будет выглядеть и звучать тревога",
+                )
+                context.startActivity(
+                    Intent(context, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Проверить тревогу целиком") }
+        Text(
+            "Зазвенит по-настоящему — со звуком, вибрацией и экраном, но не дольше 30 секунд.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 
     // Long radio lists pushed everything else off the screen; the choice already made is
     // shown as one line, and the list opens only when there is a choice to change.
@@ -502,27 +561,20 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
     }
 
     SectionCard("Продолжительность") {
-        NumberField("Звонить не дольше, сек", settings.loopSeconds) { value ->
-            update { it.copy(loopSeconds = value.coerceAtLeast(5)) }
-        }
-        NumberField("Пауза после срабатывания, сек", settings.cooldownSeconds) { value ->
-            update { it.copy(cooldownSeconds = value.coerceAtLeast(0)) }
-        }
-        Button(
-            onClick = {
-                AlarmPreview.stop(context)
-                AlarmController.trigger(
-                    context,
-                    settings.copy(loopSeconds = minOf(settings.loopSeconds, 30)),
-                    "Проверка",
-                    "Так будет выглядеть и звучать тревога",
-                )
-                context.startActivity(
-                    Intent(context, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-            },
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("Полная проверка тревоги") }
+        DurationChoice(
+            label = "Звонить не дольше",
+            options = Durations.options(Durations.ALARM_LIMIT, settings.loopSeconds),
+            current = settings.loopSeconds,
+        ) { value -> update { it.copy(loopSeconds = value) } }
+        DurationChoice(
+            label = "Пауза после срабатывания",
+            options = Durations.options(Durations.COOLDOWN, settings.cooldownSeconds),
+            current = settings.cooldownSeconds,
+        ) { value -> update { it.copy(cooldownSeconds = value) } }
+        Text(
+            "Пауза не даёт одному и тому же сообщению поднять тревогу дважды подряд.",
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
@@ -537,7 +589,39 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
     var yellowText by remember { mutableStateOf(settings.yellowKeywords.joinToString(", ")) }
     var deactivationText by remember { mutableStateOf(settings.deactivationKeywords.joinToString(", ")) }
 
-    SectionCard("Что сейчас настроено") {
+    // Pressing a step must land on the field it is about. Focus does the scrolling for us,
+    // opens the keyboard, and leaves the cursor where the answer goes.
+    val chatFocus = remember { FocusRequester() }
+    val keywordsFocus = remember { FocusRequester() }
+    val allClearFocus = remember { FocusRequester() }
+
+    val tick = AppRefresh.tick
+    val notificationAccess = remember(tick) {
+        NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+    }
+    val batteryFree = remember(tick) {
+        val power = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        power?.isIgnoringBatteryOptimizations(context.packageName) == true
+    }
+    val steps = SetupChecklist.steps(settings, notificationAccess, batteryFree)
+
+    SetupCard(steps) { action ->
+        when (action) {
+            SetupAction.ENABLE_DUTY -> {
+                update { it.copy(enabled = true) }
+                MaxWatchService.start(context)
+            }
+            SetupAction.NOTIFICATION_ACCESS -> context.openNotificationAccess()
+            SetupAction.BATTERY -> context.requestBatteryFreedom()
+            SetupAction.CHAT -> chatFocus.requestFocus()
+            SetupAction.KEYWORDS -> keywordsFocus.requestFocus()
+            SetupAction.ALL_CLEAR -> allClearFocus.requestFocus()
+        }
+    }
+
+    // Open when there is nothing left to fix -- then it is the answer to "what will it do".
+    // While steps remain, it is reference material and should not stand in front of them.
+    CollapsibleCard("Что сейчас настроено", startOpen = steps.isEmpty()) {
         Text(
             ConfigSummary.describe(
                 settings,
@@ -547,8 +631,6 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
             style = MaterialTheme.typography.bodyMedium,
         )
     }
-
-    SetupCard(settings)
 
     AccessCard(context)
     DirectConnectionCard(settings, update)
@@ -560,7 +642,7 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
             label = { Text("Название чата содержит") },
             supportingText = { Text("Пусто — любой чат. Точное название видно во вкладке «Журнал».") },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().focusRequester(chatFocus),
         )
         OutlinedTextField(
             value = keywordsText,
@@ -570,7 +652,7 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
             },
             label = { Text("Слова КОДА КРАСНОГО") },
             supportingText = { Text("Единственный уровень, который звенит. Пусто и жёлтые тоже пусты — красный на любое сообщение.") },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().focusRequester(keywordsFocus),
         )
         OutlinedTextField(
             value = yellowHighText,
@@ -623,7 +705,7 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
             },
             label = { Text("Слова отбоя") },
             supportingText = { Text("Снимают «Код красный», в том числе задним числом — после возврата связи.") },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().focusRequester(allClearFocus),
         )
     }
 
@@ -671,52 +753,42 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
 /**
  * What is still missing before this phone can be trusted to wake someone.
  *
- * Written as things left to do rather than a wall of settings: the point of opening this
- * screen the first time is to find out what is not done yet.
+ * Every line does the thing it names. A checklist that only states the problem sends the user
+ * hunting for the screen that fixes it -- and the two that matter most on this phone (the
+ * notification access and the battery page) are buried deep in EMUI's own settings.
  */
 @Composable
-private fun SetupCard(settings: AlertSettings) {
-    val context = LocalContext.current
-    val tick = AppRefresh.tick
+private fun SetupCard(steps: List<SetupStep>, onAction: (SetupAction) -> Unit) {
+    val palette = LocalAlertPalette.current
 
-    val notificationAccess = remember(tick) {
-        NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
-    }
-    val batteryFree = remember(tick) {
-        val power = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
-        power?.isIgnoringBatteryOptimizations(context.packageName) == true
-    }
-    val noWords = settings.keywords.isEmpty() &&
-        settings.yellowHighKeywords.isEmpty() &&
-        settings.yellowKeywords.isEmpty()
-
-    val todo = buildList {
-        if (!settings.enabled) add("Включите дежурство — переключатель в шапке")
-        if (!notificationAccess) add("Выдайте доступ к уведомлениям (ниже)")
-        if (settings.chatFilter.isBlank()) add("Укажите чат: сейчас тревогу поднимет любой")
-        if (noWords) add("Задайте слова: сейчас звенит любое сообщение из чата")
-        if (settings.deactivationKeywords.isEmpty()) add("Задайте слова отбоя, иначе снимать только вручную")
-        if (!batteryFree) add("Снимите ограничения батареи, иначе EMUI закроет службу")
-    }
-
-    SectionCard(if (todo.isEmpty()) "Настроено" else "Осталось настроить") {
-        if (todo.isEmpty()) {
+    SectionCard(if (steps.isEmpty()) "Настроено" else "Осталось настроить") {
+        if (steps.isEmpty()) {
             Text(
                 "Всё на месте: чат выбран, слова заданы, доступы выданы. Проверьте тревогу на " +
-                    "вкладке «Тревога» и можно дежурить.",
+                    "вкладке «Сигнал» и можно дежурить.",
                 style = MaterialTheme.typography.bodySmall,
             )
         } else {
-            todo.forEach { item ->
+            steps.forEach { step ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         Modifier
                             .size(Spacing.bulletDot)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.error)
+                            // Red only where nothing will ring at all; the rest merely make
+                            // the watch coarse, and painting them the same hides which is which.
+                            .background(if (step.blocking) palette.statusFail else palette.statusWarn)
                     )
                     Spacer(Modifier.width(Spacing.md))
-                    Text(item, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        step.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(Spacing.sm))
+                    TextButton(onClick = { onAction(step.action) }) {
+                        Text(step.button, maxLines = 1)
+                    }
                 }
             }
         }
@@ -737,12 +809,7 @@ private fun AccessCard(context: Context) {
         )
         if (!granted) {
             Button(
-                onClick = {
-                    context.startActivity(
-                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
-                },
+                onClick = { context.openNotificationAccess() },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Выдать доступ") }
         }
@@ -963,7 +1030,8 @@ private fun CollapsibleCard(
     startOpen: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    var open by remember { mutableStateOf(startOpen) }
+    // Keyed on startOpen: when the reason to keep it shut goes away, the card opens itself.
+    var open by remember(startOpen) { mutableStateOf(startOpen) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             Row(
@@ -1055,20 +1123,30 @@ private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
     }
 }
 
+/** A duration as chips: no keyboard, no unit to guess, no way to type 3 instead of 300. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun NumberField(label: String, value: Int, onChange: (Int) -> Unit) {
-    var text by remember(value) { mutableStateOf(value.toString()) }
-    OutlinedTextField(
-        value = text,
-        onValueChange = { entered ->
-            text = entered
-            entered.toIntOrNull()?.let(onChange)
-        },
-        label = { Text(label) },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth(),
-    )
+private fun DurationChoice(
+    label: String,
+    options: List<Int>,
+    current: Int,
+    onPick: (Int) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            options.forEach { value ->
+                FilterChip(
+                    selected = value == current,
+                    onClick = { onPick(value) },
+                    label = { Text(Durations.label(value), maxLines = 1) },
+                )
+            }
+        }
+    }
 }
 
 /**
@@ -1099,6 +1177,15 @@ private fun Context.requestBatteryFreedom() {
         .setData(Uri.fromParts("package", packageName, null))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     if (runCatching { startActivity(intent) }.isFailure) openBatterySettings()
+}
+
+private fun Context.openNotificationAccess() {
+    runCatching {
+        startActivity(
+            Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }
 }
 
 private fun Context.openDndAccess() {
