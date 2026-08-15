@@ -194,7 +194,7 @@ private fun HomeScreen() {
             when (tab) {
                 0 -> AlarmTab(settings, ::update)
                 1 -> WatchTab(settings, ::update)
-                else -> LogTab()
+                else -> LogTab(settings, ::update)
             }
         }
     }
@@ -556,6 +556,30 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
             supportingText = { Text("Жёлтые уровни не звучат: меняют состояние и строку в шторке.") },
             modifier = Modifier.fillMaxWidth(),
         )
+        HorizontalDivider()
+        var probe by remember { mutableStateOf("") }
+        OutlinedTextField(
+            value = probe,
+            onValueChange = { probe = it },
+            label = { Text("Проверить фразу") },
+            supportingText = {
+                Text(
+                    if (probe.isBlank()) "Вставьте сюда текст сообщения — покажу, сработает ли и почему."
+                    else Matcher.explain(
+                        Matcher.evaluate(
+                            IncomingNotification(
+                                packageName = settings.sourcePackage,
+                                chat = settings.chatFilter.ifBlank { "любой чат" },
+                                text = probe,
+                            ),
+                            settings,
+                        )
+                    )
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+
         OutlinedTextField(
             value = deactivationText,
             onValueChange = { value ->
@@ -595,9 +619,13 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
             style = MaterialTheme.typography.bodySmall,
         )
         OutlinedButton(
+            onClick = { context.requestBatteryFreedom() },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Снять ограничения батареи") }
+        OutlinedButton(
             onClick = { context.openBatterySettings() },
             modifier = Modifier.fillMaxWidth(),
-        ) { Text("Настройки батареи") }
+        ) { Text("Запуск приложений (Huawei)") }
         OutlinedButton(
             onClick = { context.openDndAccess() },
             modifier = Modifier.fillMaxWidth(),
@@ -839,7 +867,7 @@ private fun DirectConnectionCard(
 /* -------------------------------------------------------------- log tab */
 
 @Composable
-private fun LogTab() {
+private fun LogTab(settings: AlertSettings, update: ((AlertSettings) -> AlertSettings) -> Unit) {
     val context = LocalContext.current
     val entries = EventLog.entries
     val format = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
@@ -853,6 +881,9 @@ private fun LogTab() {
             )
         } else {
             entries.forEach { entry ->
+                val watched = entry.chat.isNotBlank() &&
+                    settings.chatFilter.isNotBlank() &&
+                    entry.chat.contains(settings.chatFilter, ignoreCase = true)
                 Column(Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (entry.fired) {
@@ -872,6 +903,11 @@ private fun LogTab() {
                     }
                     Text(entry.text, style = MaterialTheme.typography.bodySmall)
                     Text(entry.reason, style = MaterialTheme.typography.labelSmall)
+                    if (entry.chat.isNotBlank() && !watched) {
+                        TextButton(onClick = { update { it.copy(chatFilter = entry.chat) } }) {
+                            Text("Следить за этим чатом")
+                        }
+                    }
                 }
                 HorizontalDivider()
             }
@@ -968,14 +1004,34 @@ private fun NumberField(label: String, value: Int, onChange: (Int) -> Unit) {
     )
 }
 
+/**
+ * Opens EMUI's own "Запуск приложений" screen when it exists.
+ *
+ * On Huawei that screen -- not the standard battery page -- is the one that decides whether
+ * the watcher survives the night, and it cannot be reached from the generic settings intent.
+ * Falls back to the app's details page everywhere else.
+ */
 private fun Context.openBatterySettings() {
-    runCatching {
-        startActivity(
-            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                .setData(Uri.fromParts("package", packageName, null))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
+    val huawei = Intent().setClassName(
+        "com.huawei.systemmanager",
+        "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity",
+    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+    val fallback = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        .setData(Uri.fromParts("package", packageName, null))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+    if (runCatching { startActivity(huawei) }.isFailure) {
+        runCatching { startActivity(fallback) }
     }
+}
+
+/** Asks Android to stop restricting the app in the background; a no-op if already allowed. */
+private fun Context.requestBatteryFreedom() {
+    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+        .setData(Uri.fromParts("package", packageName, null))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { startActivity(intent) }.isFailure) openBatterySettings()
 }
 
 private fun Context.openDndAccess() {

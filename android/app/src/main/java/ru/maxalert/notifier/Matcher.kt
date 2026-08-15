@@ -69,6 +69,23 @@ object Matcher {
 
     fun parseKeywords(raw: String): List<String> =
         raw.split(',', '\n').map { it.trim() }.filter { it.isNotEmpty() }
+
+    /**
+     * The verdict in words, for the dry run on the settings screen.
+     *
+     * Saying "не сработает" is not enough: the useful part is which rule decided, so a
+     * misconfigured filter can be found without staging a real alarm.
+     */
+    fun explain(verdict: Verdict): String = when (verdict) {
+        is Verdict.Match -> {
+            val why = verdict.keyword?.let { "по слову «$it»" } ?: "как любое сообщение в чате"
+            "Сработает: ${verdict.level.title} $why" +
+                if (verdict.level.rings) " — со звуком" else " — молча, без звука"
+        }
+
+        is Verdict.Deactivate -> "Снимет тревогу: слово отбоя «${verdict.keyword}»"
+        is Verdict.Skip -> "Не сработает: ${verdict.reason}"
+    }
 }
 
 /**
