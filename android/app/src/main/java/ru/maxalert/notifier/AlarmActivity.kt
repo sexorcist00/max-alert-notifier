@@ -92,21 +92,21 @@ private fun AlarmScreen(chat: String, message: String, ringing: Boolean, onStop:
     ) {
         Text(
             text = AlertState.state.level.takeIf { it != AlertLevel.NONE }?.title ?: "ТРЕВОГА",
-            color = Color.White,
+            color = Color(AlertState.state.level.onColorArgb),
             fontSize = 44.sp,
             textAlign = TextAlign.Center,
         )
         Column(Modifier.height(24.dp)) {}
         Text(
             text = chat.ifBlank { "MAX" },
-            color = Color.White,
+            color = Color(AlertState.state.level.onColorArgb),
             style = MaterialTheme.typography.titleLarge,
             textAlign = TextAlign.Center,
         )
         Column(Modifier.height(12.dp)) {}
         Text(
             text = message,
-            color = Color.White,
+            color = Color(AlertState.state.level.onColorArgb),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
         )
@@ -117,7 +117,7 @@ private fun AlarmScreen(chat: String, message: String, ringing: Boolean, onStop:
                 .fillMaxWidth()
                 .height(96.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color.White,
+                containerColor = Color(AlertState.state.level.onColorArgb),
                 contentColor = Color(AlertState.state.level.colorArgb),
             ),
         ) {

@@ -26,6 +26,19 @@ enum class AlertLevel(
             NONE -> 0xFF2E7D32
         }
 
+    /**
+     * Text colour for [colorArgb], chosen for contrast rather than for looks.
+     *
+     * White on amber measures about 2:1, well under the 4.5:1 that normal text needs, so the
+     * yellow levels carry near-black text. A test checks every pair.
+     */
+    val onColorArgb: Long
+        get() = when (this) {
+            RED -> 0xFFFFFFFF
+            YELLOW_HIGH, YELLOW -> 0xFF1A1A1A
+            NONE -> 0xFFFFFFFF
+        }
+
     companion object {
         fun fromId(id: String?): AlertLevel =
             entries.firstOrNull { level -> level.id == id } ?: NONE

@@ -13,6 +13,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,7 +36,14 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -239,14 +247,17 @@ private fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
                 Text(age, style = MaterialTheme.typography.labelSmall)
             }
         }
-        TextButton(
+        IconButton(
             enabled = !ConnectionProbe.busy,
             onClick = {
                 AppRefresh.bump()
                 if (session.loggedIn) scope.launch { ConnectionProbe.run(context) }
             },
         ) {
-            Text(if (ConnectionProbe.busy) "…" else "↻")
+            Icon(
+                imageVector = Icons.Filled.Refresh,
+                contentDescription = "Обновить состояние и проверить сессию",
+            )
         }
     }
 }
@@ -266,15 +277,15 @@ private fun AlertStateCard() {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 state.level.title,
-                color = Color.White,
+                color = Color(state.level.onColorArgb),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
-            Text("${state.chat}: ${state.text}", color = Color.White)
+            Text("${state.chat}: ${state.text}", color = Color(state.level.onColorArgb))
             Text(
                 "Объявлен ${format.format(Date(state.since))}" +
                     if (state.silenced) " · звук выключен, состояние держится" else "",
-                color = Color.White,
+                color = Color(state.level.onColorArgb),
                 style = MaterialTheme.typography.bodySmall,
             )
             Button(
@@ -283,7 +294,7 @@ private fun AlertStateCard() {
                     AlertState.clear(context)
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.White,
+                    containerColor = Color(state.level.onColorArgb),
                     contentColor = Color(state.level.colorArgb),
                 ),
                 modifier = Modifier.fillMaxWidth(),
@@ -358,7 +369,8 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
             open = patternsOpen,
             onToggle = { patternsOpen = !patternsOpen },
         )
-        if (patternsOpen) {
+        AnimatedVisibility(visible = patternsOpen) {
+          Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 "Один ритм задаёт звук, вибрацию и фонарик. Шаблоны взяты из стандартов: кто " +
                     "слышал пожарный извещатель, узнаёт сигнал без объяснений.",
@@ -375,6 +387,7 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
                     subtitle = pattern.standard,
                 )
             }
+          }
         }
         OutlinedButton(
             onClick = { AlarmPreview.vibrate(context, settings) },
@@ -389,24 +402,20 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
             note = AlarmSounds.CATALOGUE.firstOrNull { it.uri == settings.soundUri }?.note,
             open = soundsOpen,
             onToggle = { soundsOpen = !soundsOpen },
-            trailing = {
-                TextButton(onClick = { AlarmPreview.toggleSound(context, settings.soundUri) }) {
-                    Text(if (AlarmPreview.playing == settings.soundUri) "стоп" else "▶")
-                }
-            },
+            trailing = { PreviewButton(context, settings.soundUri) },
         )
-        if (soundsOpen) AlarmSounds.CATALOGUE.forEach { choice ->
+        AnimatedVisibility(visible = soundsOpen) {
+          Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            AlarmSounds.CATALOGUE.forEach { choice ->
             ChoiceRow(
                 selected = settings.soundUri == choice.uri,
                 onSelect = { update { it.copy(soundUri = choice.uri) } },
                 title = choice.label,
                 subtitle = choice.note,
-                trailing = {
-                    TextButton(onClick = { AlarmPreview.toggleSound(context, choice.uri) }) {
-                        Text(if (AlarmPreview.playing == choice.uri) "стоп" else "▶")
-                    }
-                },
+                trailing = { PreviewButton(context, choice.uri) },
             )
+            }
+          }
         }
         if (soundsOpen) OutlinedButton(
             onClick = {
@@ -810,11 +819,22 @@ private fun LogTab() {
         } else {
             entries.forEach { entry ->
                 Column(Modifier.fillMaxWidth()) {
-                    Text(
-                        "${format.format(Date(entry.time))}  ${if (entry.fired) "🔔" else "—"}  ${entry.chat}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (entry.fired) {
+                            Icon(
+                                imageVector = Icons.Filled.NotificationsActive,
+                                contentDescription = "Сработала тревога",
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        Text(
+                            "${format.format(Date(entry.time))}  ${entry.chat}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                     Text(entry.text, style = MaterialTheme.typography.bodySmall)
                     Text(entry.reason, style = MaterialTheme.typography.labelSmall)
                 }
@@ -928,6 +948,18 @@ private fun Context.openDndAccess() {
         startActivity(
             Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }
+}
+
+/** Play or stop a preview. An icon button keeps the 48dp target Android asks for. */
+@Composable
+private fun PreviewButton(context: Context, soundUri: String?) {
+    val playing = AlarmPreview.playing == soundUri
+    IconButton(onClick = { AlarmPreview.toggleSound(context, soundUri) }) {
+        Icon(
+            imageVector = if (playing) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+            contentDescription = if (playing) "Остановить прослушивание" else "Прослушать сигнал",
         )
     }
 }
