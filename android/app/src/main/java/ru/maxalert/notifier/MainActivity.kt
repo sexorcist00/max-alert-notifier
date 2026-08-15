@@ -462,6 +462,7 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
 @Composable
 private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertSettings) -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var keywordsText by remember { mutableStateOf(settings.keywords.joinToString(", ")) }
     var yellowHighText by remember { mutableStateOf(settings.yellowHighKeywords.joinToString(", ")) }
     var yellowText by remember { mutableStateOf(settings.yellowKeywords.joinToString(", ")) }
@@ -530,6 +531,26 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
             supportingText = { Text("Снимают «Код красный», в том числе задним числом — после возврата связи.") },
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+
+    SectionCard("Версия") {
+        Text("Установлено: ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            if (BuildConfig.VERSION_NAME == "0.0.0") {
+                "Сборка не из релиза — обновление будет предлагаться всегда."
+            } else {
+                "Обновления берутся из Releases репозитория и предлагаются при запуске."
+            },
+            style = MaterialTheme.typography.bodySmall,
+        )
+        OutlinedButton(
+            onClick = { scope.launch { UpdateChecker.check(context, quiet = false) } },
+            enabled = !UpdateChecker.busy,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(if (UpdateChecker.busy) "Проверяю…" else "Проверить обновления") }
+        UpdateChecker.message?.let { text ->
+            Text(text, style = MaterialTheme.typography.bodySmall)
+        }
     }
 
     SectionCard("Чтобы не убивала система") {

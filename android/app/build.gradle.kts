@@ -4,6 +4,25 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+/**
+ * The version comes from the release, not from this file.
+ *
+ * It used to be hardcoded, so every build called itself 1.0 no matter which tag published
+ * it -- the installed app kept offering an update to a version it was already running.
+ * CI passes -PappVersion=<tag>; a local build without it is 0.0.0, which is honestly older
+ * than any release.
+ */
+val appVersion: String = (project.findProperty("appVersion") as String?)?.trim().orEmpty()
+    .ifEmpty { "0.0.0" }
+
+fun versionCodeOf(version: String): Int {
+    val parts = version.split('.').map { part -> part.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
+    val major = parts.getOrElse(0) { 0 }
+    val minor = parts.getOrElse(1) { 0 }
+    val patch = parts.getOrElse(2) { 0 }
+    return (major * 10_000 + minor * 100 + patch).coerceAtLeast(1)
+}
+
 android {
     namespace = "ru.maxalert.notifier"
     compileSdk = 35
@@ -12,8 +31,8 @@ android {
         applicationId = "ru.maxalert.notifier"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = versionCodeOf(appVersion)
+        versionName = appVersion
     }
 
     signingConfigs {

@@ -28,12 +28,8 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      - name: Tests and APK
-        working-directory: android
-        run: ./gradlew testDebugUnitTest assembleDebug
-
-      - name: Name the APK after the version
-        id: apk
+      - name: Work out the version being built
+        id: version
         run: |
           input_version="${{ inputs.version }}"
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
@@ -44,10 +40,25 @@ jobs:
             tag=""
           fi
           version="${tag#v}"
-          [ -n "$version" ] || version="dev-${GITHUB_SHA::7}"
-          cp android/app/build/outputs/apk/debug/app-debug.apk "max-alert-${version}.apk"
-          echo "path=max-alert-${version}.apk" >> "$GITHUB_OUTPUT"
+          # A build that is not a release calls itself 0.0.0: older than anything published,
+          # so it never claims to be up to date.
+          [ -n "$version" ] || version="0.0.0"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Tests and APK
+        working-directory: android
+        run: ./gradlew testDebugUnitTest assembleDebug -PappVersion=${{ steps.version.outputs.version }}
+
+      - name: Name the APK after the version
+        id: apk
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          name="alert-${version}.apk"
+          [ -n "${{ steps.version.outputs.tag }}" ] || name="alert-dev-${GITHUB_SHA::7}.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$name"
+          echo "path=$name" >> "$GITHUB_OUTPUT"
+          echo "tag=${{ steps.version.outputs.tag }}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:

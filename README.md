@@ -118,9 +118,15 @@ APK публикуется в **Releases** автоматически. Два с
 
 ```bash
 cd android
-ANDROID_HOME=<путь к SDK> ./gradlew testDebugUnitTest assembleDebug
+ANDROID_HOME=<путь к SDK> ./gradlew testDebugUnitTest assembleDebug -PappVersion=1.4.0
 # app/build/outputs/apk/debug/app-debug.apk
 ```
+
+**Версия задаётся при сборке**, а не хранится в `build.gradle.kts`: CI подставляет её из тега
+релиза (`-PappVersion=<тег>`), `versionCode` считается как `major*10000 + minor*100 + patch`.
+Сборка без этого параметра называет себя `0.0.0` — заведомо старее любого релиза. Раньше версия
+была зашита как `1.0`, и приложение бесконечно предлагало обновиться на версию, которая уже
+стояла.
 
 Требуется JDK 17+, Android SDK 35. GitHub Actions собирает APK на каждый push в `android/`.
 
