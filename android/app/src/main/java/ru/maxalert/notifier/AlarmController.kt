@@ -195,17 +195,24 @@ object AlarmController {
         }.onFailure { Log.e(TAG, "cannot play the alarm sound", it) }
     }
 
+    /**
+     * The alarm carries its own sound. It never falls back to the phone's alarm ringtone:
+     * this signal must not change because someone edited an unrelated setting, and the
+     * standard cadences only mean what they mean if the tone is the one we shipped.
+     */
     private fun alarmSound(context: Context, settings: AlertSettings): Uri? {
-        val configured = settings.soundUri
-        if (configured != null && configured.startsWith(BUNDLED_PREFIX)) {
-            val name = configured.removePrefix(BUNDLED_PREFIX)
-            val id = context.resources.getIdentifier(name, "raw", context.packageName)
-            if (id != 0) return Uri.parse("android.resource://${context.packageName}/$id")
+        val configured = settings.soundUri ?: AlertSettings.DEFAULT_SOUND
+        if (configured.startsWith(BUNDLED_PREFIX)) {
+            return bundled(context, configured.removePrefix(BUNDLED_PREFIX))
         }
-        return configured?.let(Uri::parse)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        return runCatching { Uri.parse(configured) }.getOrNull()
+            ?: bundled(context, AlertSettings.DEFAULT_SOUND.removePrefix(BUNDLED_PREFIX))
+    }
+
+    private fun bundled(context: Context, name: String): Uri? {
+        val id = context.resources.getIdentifier(name, "raw", context.packageName)
+        if (id == 0) return null
+        return Uri.parse("android.resource://${context.packageName}/$id")
     }
 
     private fun startVibration(context: Context, settings: AlertSettings) {

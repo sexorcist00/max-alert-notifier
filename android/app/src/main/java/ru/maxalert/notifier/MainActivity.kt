@@ -194,7 +194,9 @@ private fun SettingsScreen() {
                 OutlinedButton(
                     onClick = {
                         val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
-                            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALL)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, false)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
                             putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Звук тревоги")
                             putExtra(
                                 RingtoneManager.EXTRA_RINGTONE_EXISTING_URI,
@@ -250,9 +252,15 @@ private fun SettingsScreen() {
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
-                SwitchRow("Выкручивать громкость будильника", settings.forceMaxVolume) { value ->
+                SwitchRow("Выкручивать громкость сигнала", settings.forceMaxVolume) { value ->
                     update { it.copy(forceMaxVolume = value) }
                 }
+                Text(
+                    "Свой сигнал, а не звонок будильника из настроек телефона. Звук идёт по " +
+                        "тревожному аудиоканалу — его не глушит «Не беспокоить»; прежний уровень " +
+                        "громкости возвращается сразу после отбоя.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 NumberField("Звонить не дольше, сек", loopText) { value ->
                     loopText = value
                     value.toIntOrNull()?.takeIf { it > 0 }?.let { seconds ->
@@ -537,7 +545,6 @@ private val SOUND_CHOICES = listOf(
     "${AlarmController.BUNDLED_PREFIX}alarm_t3" to "Эвакуация T-3 (ISO 8201)",
     "${AlarmController.BUNDLED_PREFIX}alarm_t4" to "Угарный газ T-4 (S3.41)",
     "${AlarmController.BUNDLED_PREFIX}alarm_wea" to "Экстренное оповещение (EAS)",
-    null to "Системный будильник",
     "${AlarmController.BUNDLED_PREFIX}alarm_two_tone" to "Двухтональный сигнал",
     "${AlarmController.BUNDLED_PREFIX}alarm_siren" to "Сирена",
     "${AlarmController.BUNDLED_PREFIX}alarm_pulse" to "Резкие писки",

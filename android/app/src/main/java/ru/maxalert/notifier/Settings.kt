@@ -19,7 +19,7 @@ data class AlertSettings(
     val forceMaxVolume: Boolean = true,
     val loopSeconds: Int = 300,
     val cooldownSeconds: Int = 30,
-    val soundUri: String? = null,
+    val soundUri: String? = DEFAULT_SOUND,
     /** Second, independent source: the app's own connection to MAX. */
     val useDirectConnection: Boolean = true,
 ) {
@@ -27,6 +27,9 @@ data class AlertSettings(
 
     companion object {
         const val MAX_PACKAGE = "ru.oneme.app"
+
+        /** The alarm ships its own sound; the phone's alarm ringtone is never used. */
+        const val DEFAULT_SOUND = "raw:alarm_t3"
     }
 }
 
@@ -49,7 +52,7 @@ class SettingsStore(context: Context) {
             forceMaxVolume = prefs.getBoolean(KEY_MAX_VOLUME, defaults.forceMaxVolume),
             loopSeconds = prefs.getInt(KEY_LOOP, defaults.loopSeconds),
             cooldownSeconds = prefs.getInt(KEY_COOLDOWN, defaults.cooldownSeconds),
-            soundUri = prefs.getString(KEY_SOUND, null),
+            soundUri = prefs.getString(KEY_SOUND, defaults.soundUri) ?: defaults.soundUri,
             useDirectConnection = prefs.getBoolean(KEY_DIRECT, defaults.useDirectConnection),
         )
     }
