@@ -319,16 +319,6 @@ private fun UpdateCard() {
 
 /* ------------------------------------------------------------ alarm tab */
 
-private val SOUND_CHOICES = listOf(
-    "${AlarmController.BUNDLED_PREFIX}alarm_t3" to "Эвакуация T-3 (ISO 8201)",
-    "${AlarmController.BUNDLED_PREFIX}alarm_t4" to "Угарный газ T-4 (S3.41)",
-    "${AlarmController.BUNDLED_PREFIX}alarm_wea" to "Экстренное оповещение (EAS)",
-    "${AlarmController.BUNDLED_PREFIX}alarm_two_tone" to "Двухтональный сигнал",
-    "${AlarmController.BUNDLED_PREFIX}alarm_siren" to "Сирена",
-    "${AlarmController.BUNDLED_PREFIX}alarm_pulse" to "Резкие писки",
-    "${AlarmController.BUNDLED_PREFIX}alarm_klaxon" to "Низкий клаксон",
-)
-
 @Composable
 private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertSettings) -> Unit) {
     val context = LocalContext.current
@@ -363,19 +353,20 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
     }
 
     SectionCard("Звук") {
-        SOUND_CHOICES.forEach { (value, label) ->
+        AlarmSounds.CATALOGUE.forEach { choice ->
             ChoiceRow(
-                selected = settings.soundUri == value,
-                onSelect = { update { it.copy(soundUri = value) } },
-                title = label,
+                selected = settings.soundUri == choice.uri,
+                onSelect = { update { it.copy(soundUri = choice.uri) } },
+                title = choice.label,
+                subtitle = choice.note,
                 trailing = {
-                    TextButton(onClick = { AlarmPreview.toggleSound(context, value) }) {
-                        Text(if (AlarmPreview.playing == value) "стоп" else "▶")
+                    TextButton(onClick = { AlarmPreview.toggleSound(context, choice.uri) }) {
+                        Text(if (AlarmPreview.playing == choice.uri) "стоп" else "▶")
                     }
                 },
             )
         }
-        val custom = settings.soundUri != null && SOUND_CHOICES.none { it.first == settings.soundUri }
+        val custom = settings.soundUri != null && !AlarmSounds.contains(settings.soundUri)
         ChoiceRow(
             selected = custom,
             onSelect = {},

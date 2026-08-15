@@ -19,6 +19,50 @@ class AlarmSoundNegativeCasesTest {
     }
 }
 
+class AlarmCatalogueNegativeCasesTest {
+
+    @Test
+    fun `the default sound is not missing from the picker`() {
+        // This is the bug this test exists for: the default pointed at a tone the list did
+        // not contain, so the screen showed "свой файл" for a sound the app itself chose.
+        assertTrue(
+            "Звук по умолчанию отсутствует в списке выбора",
+            AlarmSounds.contains(AlertSettings.DEFAULT_SOUND),
+        )
+    }
+
+    @Test
+    fun `a picked file is not mistaken for a bundled tone`() {
+        assertFalse(AlarmSounds.contains("content://media/external/audio/media/42"))
+        assertFalse(AlarmSounds.contains(null))
+    }
+
+    @Test
+    fun `no two entries share a sound or a label`() {
+        val uris = AlarmSounds.CATALOGUE.map { it.uri }
+        val labels = AlarmSounds.CATALOGUE.map { it.label }
+        assertEquals(uris.size, uris.toSet().size)
+        assertEquals(labels.size, labels.toSet().size)
+    }
+}
+
+class AlarmCataloguePositiveCasesTest {
+
+    @Test
+    fun `both civil-defence sirens are offered`() {
+        val labels = AlarmSounds.CATALOGUE.map { it.label }
+        assertTrue(labels.contains("Ракетная опасность"))
+        assertTrue(labels.contains("Воздушная тревога"))
+    }
+
+    @Test
+    fun `every entry is a bundled file, never a system ringtone`() {
+        AlarmSounds.CATALOGUE.forEach { choice ->
+            assertTrue(choice.uri.startsWith(AlarmController.BUNDLED_PREFIX))
+        }
+    }
+}
+
 class AlarmSoundPositiveCasesTest {
 
     @Test

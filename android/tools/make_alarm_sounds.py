@@ -123,8 +123,23 @@ def missile_alert() -> list[float]:
     return out
 
 
+def air_raid() -> list[float]:
+    """Воздушная тревога: the fast wavering tone.
+
+    Civil-defence sirens use one family of sounds, so the levels are told apart by speed:
+    this one sweeps in about two seconds, against the five-second swell of the missile
+    warning. Rising and falling is the "attack warning" of the NATO/CD convention, as
+    opposed to a steady tone, which means "attention, listen".
+    """
+    out: list[float] = []
+    for _ in range(5):
+        out += sweep(1.0, 500, 1200) + sweep(1.0, 1200, 500)
+    return out
+
+
 TONES = {
     "alarm_missile": missile_alert,
+    "alarm_air_raid": air_raid,
     "alarm_two_tone": two_tone,
     "alarm_siren": siren,
     "alarm_pulse": pulse,
