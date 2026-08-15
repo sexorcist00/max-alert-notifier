@@ -33,7 +33,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.Icons
@@ -76,6 +78,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import ru.maxalert.notifier.ui.LocalAlertPalette
+import ru.maxalert.notifier.ui.Spacing
 import ru.maxalert.notifier.max.MaxLogin
 import ru.maxalert.notifier.max.MaxSession
 import java.text.SimpleDateFormat
@@ -160,7 +164,7 @@ private fun HomeScreen() {
                                 if (value) MaxWatchService.start(context) else MaxWatchService.stop(context)
                             },
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(Spacing.sm))
                     },
                 )
                 StatusStrip(settings) { tab = 1 }
@@ -181,8 +185,8 @@ private fun HomeScreen() {
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
             AlertStateCard()
             UpdateCard()
@@ -219,10 +223,11 @@ private fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
         now = now,
     )
 
+    val palette = LocalAlertPalette.current
     val color = when (status.level) {
-        SessionStatus.Level.OK -> Color(0xFF2E7D32)
-        SessionStatus.Level.WARN -> Color(0xFFF9A825)
-        SessionStatus.Level.FAIL -> MaterialTheme.colorScheme.error
+        SessionStatus.Level.OK -> palette.statusOk
+        SessionStatus.Level.WARN -> palette.statusWarn
+        SessionStatus.Level.FAIL -> palette.statusFail
     }
 
     Row(
@@ -230,16 +235,16 @@ private fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .selectable(selected = false, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             Modifier
-                .size(14.dp)
+                .size(Spacing.statusDot)
                 .clip(CircleShape)
                 .background(color)
         )
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Spacing.md))
         Column(Modifier.weight(1f)) {
             Text(status.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
             Text(status.detail, style = MaterialTheme.typography.bodySmall)
@@ -274,7 +279,7 @@ private fun AlertStateCard() {
         colors = CardDefaults.cardColors(containerColor = Color(state.level.colorArgb)),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
                 state.level.title,
                 color = Color(state.level.onColorArgb),
@@ -314,14 +319,14 @@ private fun UpdateCard() {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text("Есть версия ${release.version}", fontWeight = FontWeight.Bold)
             Text(
                 "Установлена ${BuildConfig.VERSION_NAME}. Обновление ставится системным " +
                     "установщиком — потребуется разрешение на установку из этого приложения.",
                 style = MaterialTheme.typography.bodySmall,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Button(
                     enabled = !downloading,
                     onClick = {
@@ -370,7 +375,7 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
             onToggle = { patternsOpen = !patternsOpen },
         )
         AnimatedVisibility(visible = patternsOpen) {
-          Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(
                 "Один ритм задаёт звук, вибрацию и фонарик. Шаблоны взяты из стандартов: кто " +
                     "слышал пожарный извещатель, узнаёт сигнал без объяснений.",
@@ -405,7 +410,7 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
             trailing = { PreviewButton(context, settings.soundUri) },
         )
         AnimatedVisibility(visible = soundsOpen) {
-          Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             AlarmSounds.CATALOGUE.forEach { choice ->
             ChoiceRow(
                 selected = settings.soundUri == choice.uri,
@@ -643,11 +648,11 @@ private fun SetupCard(settings: AlertSettings) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         Modifier
-                            .size(8.dp)
+                            .size(Spacing.bulletDot)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.error)
                     )
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(Spacing.md))
                     Text(item, style = MaterialTheme.typography.bodyMedium)
                 }
             }
@@ -700,6 +705,37 @@ private fun DirectConnectionCard(
     var code by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var confirmLogout by remember { mutableStateOf(false) }
+
+    if (confirmLogout) {
+        AlertDialog(
+            onDismissRequest = { confirmLogout = false },
+            title = { Text("Выйти из аккаунта MAX?") },
+            text = {
+                Text(
+                    "Второй источник перестанет работать: тревога останется только на " +
+                        "уведомлениях МАКСа. Обратный вход — снова по SMS и только без VPN."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        session.clear()
+                        ConnectionProbe.reset()
+                        MaxWatchService.stop(context)
+                        AppRefresh.bump()
+                        confirmLogout = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) { Text("Выйти") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmLogout = false }) { Text("Отмена") }
+            },
+        )
+    }
 
     SectionCard("Источник 2 · своё подключение к MAX") {
         Text(
@@ -727,13 +763,12 @@ private fun DirectConnectionCard(
                     else MaterialTheme.colorScheme.onSurface,
                 )
             }
-            OutlinedButton(
-                onClick = {
-                    session.clear()
-                    ConnectionProbe.reset()
-                    MaxWatchService.stop(context)
-                    AppRefresh.bump()
-                },
+            HorizontalDivider()
+            TextButton(
+                onClick = { confirmLogout = true },
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Выйти из аккаунта") }
         } else {
@@ -825,9 +860,9 @@ private fun LogTab() {
                                 imageVector = Icons.Filled.NotificationsActive,
                                 contentDescription = "Сработала тревога",
                                 tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(Spacing.inlineIcon),
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(Spacing.xs))
                         }
                         Text(
                             "${format.format(Date(entry.time))}  ${entry.chat}",
@@ -853,7 +888,7 @@ private fun LogTab() {
 @Composable
 private fun SectionCard(title: String, content: @Composable () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             content()
         }

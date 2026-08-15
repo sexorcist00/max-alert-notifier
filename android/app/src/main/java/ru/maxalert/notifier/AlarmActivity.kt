@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import ru.maxalert.notifier.ui.Spacing
 import androidx.compose.ui.unit.sp
 
 /** Full-screen alarm: shows over the lock screen, wakes the display, one big STOP button. */
@@ -86,7 +87,7 @@ private fun AlarmScreen(chat: String, message: String, ringing: Boolean, onStop:
             // The screen carries the level's own colour, so the answer is readable across a
             // dark room before a single word is.
             .background(Color(AlertState.state.level.colorArgb))
-            .padding(24.dp),
+            .padding(Spacing.xl),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -96,26 +97,26 @@ private fun AlarmScreen(chat: String, message: String, ringing: Boolean, onStop:
             fontSize = 44.sp,
             textAlign = TextAlign.Center,
         )
-        Column(Modifier.height(24.dp)) {}
+        Column(Modifier.height(Spacing.xl)) {}
         Text(
             text = chat.ifBlank { "MAX" },
             color = Color(AlertState.state.level.onColorArgb),
             style = MaterialTheme.typography.titleLarge,
             textAlign = TextAlign.Center,
         )
-        Column(Modifier.height(12.dp)) {}
+        Column(Modifier.height(Spacing.md)) {}
         Text(
             text = message,
             color = Color(AlertState.state.level.onColorArgb),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
         )
-        Column(Modifier.height(48.dp)) {}
+        Column(Modifier.height(Spacing.xxl)) {}
         Button(
             onClick = onStop,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(96.dp),
+                .height(Spacing.alarmButtonHeight),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(AlertState.state.level.onColorArgb),
                 contentColor = Color(AlertState.state.level.colorArgb),
