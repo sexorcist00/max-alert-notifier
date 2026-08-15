@@ -69,6 +69,7 @@ object AlarmController {
         raiseVolume(app, settings)
         startSound(app, settings)
         startVibration(app, settings)
+        if (settings.flashlight) Torch.start(app, settings.pattern)
 
         handler.removeCallbacks(autoStop)
         handler.postDelayed(autoStop, settings.loopSeconds * 1000L)
@@ -85,6 +86,7 @@ object AlarmController {
         player = null
 
         runCatching { vibrator(app).cancel() }
+        Torch.stop(app)
 
         previousVolume?.let { level ->
             runCatching {
@@ -208,14 +210,29 @@ object AlarmController {
 
     private fun startVibration(context: Context, settings: AlertSettings) {
         if (!settings.vibrate) return
-        val pattern = longArrayOf(0, 1000, 600)
+
+        // The pattern starts with a pulse, so the waveform starts at zero delay.
+        val timings = longArrayOf(0) + settings.pattern.timings
+        val device = vibrator(context)
+        val strength = (settings.vibrationStrength.coerceIn(1, 100) * 255 / 100)
+        val amplitudes = IntArray(timings.size) { index ->
+            // Even entries are the gaps between pulses.
+            if (index % 2 == 0) 0 else strength
+        }
+
+        val effect = if (device.hasAmplitudeControl()) {
+            VibrationEffect.createWaveform(timings, amplitudes, 0)
+        } else {
+            // No amplitude control: the rhythm still carries, the strength setting cannot.
+            VibrationEffect.createWaveform(timings, 0)
+        }
+
         val attributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ALARM)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
-        runCatching {
-            vibrator(context).vibrate(VibrationEffect.createWaveform(pattern, 0), attributes)
-        }.onFailure { Log.w(TAG, "cannot vibrate: ${it.message}") }
+        runCatching { device.vibrate(effect, attributes) }
+            .onFailure { Log.w(TAG, "cannot vibrate: ${it.message}") }
     }
 
     private fun vibrator(context: Context): Vibrator =

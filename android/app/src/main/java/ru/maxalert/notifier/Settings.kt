@@ -11,6 +11,11 @@ data class AlertSettings(
     /** Words that lift a standing alert, said in the same chat. */
     val deactivationKeywords: List<String> = emptyList(),
     val vibrate: Boolean = true,
+    /** 0..100; scaled to the vibrator's amplitude range where the device supports it. */
+    val vibrationStrength: Int = 100,
+    /** Strobe the torch on the same cadence as the sound. */
+    val flashlight: Boolean = false,
+    val patternId: String = AlarmPattern.DEFAULT.id,
     val forceMaxVolume: Boolean = true,
     val loopSeconds: Int = 300,
     val cooldownSeconds: Int = 30,
@@ -18,6 +23,8 @@ data class AlertSettings(
     /** Second, independent source: the app's own connection to MAX. */
     val useDirectConnection: Boolean = true,
 ) {
+    val pattern: AlarmPattern get() = AlarmPattern.fromId(patternId)
+
     companion object {
         const val MAX_PACKAGE = "ru.oneme.app"
     }
@@ -36,6 +43,9 @@ class SettingsStore(context: Context) {
             keywords = Matcher.parseKeywords(prefs.getString(KEY_KEYWORDS, "") ?: ""),
             deactivationKeywords = Matcher.parseKeywords(prefs.getString(KEY_DEACTIVATION, "") ?: ""),
             vibrate = prefs.getBoolean(KEY_VIBRATE, defaults.vibrate),
+            vibrationStrength = prefs.getInt(KEY_VIBRATION_STRENGTH, defaults.vibrationStrength),
+            flashlight = prefs.getBoolean(KEY_FLASHLIGHT, defaults.flashlight),
+            patternId = prefs.getString(KEY_PATTERN, defaults.patternId) ?: defaults.patternId,
             forceMaxVolume = prefs.getBoolean(KEY_MAX_VOLUME, defaults.forceMaxVolume),
             loopSeconds = prefs.getInt(KEY_LOOP, defaults.loopSeconds),
             cooldownSeconds = prefs.getInt(KEY_COOLDOWN, defaults.cooldownSeconds),
@@ -52,6 +62,9 @@ class SettingsStore(context: Context) {
             .putString(KEY_KEYWORDS, settings.keywords.joinToString(", "))
             .putString(KEY_DEACTIVATION, settings.deactivationKeywords.joinToString(", "))
             .putBoolean(KEY_VIBRATE, settings.vibrate)
+            .putInt(KEY_VIBRATION_STRENGTH, settings.vibrationStrength)
+            .putBoolean(KEY_FLASHLIGHT, settings.flashlight)
+            .putString(KEY_PATTERN, settings.patternId)
             .putBoolean(KEY_MAX_VOLUME, settings.forceMaxVolume)
             .putInt(KEY_LOOP, settings.loopSeconds)
             .putInt(KEY_COOLDOWN, settings.cooldownSeconds)
@@ -68,6 +81,9 @@ class SettingsStore(context: Context) {
         const val KEY_KEYWORDS = "keywords"
         const val KEY_DEACTIVATION = "deactivation_keywords"
         const val KEY_VIBRATE = "vibrate"
+        const val KEY_VIBRATION_STRENGTH = "vibration_strength"
+        const val KEY_FLASHLIGHT = "flashlight"
+        const val KEY_PATTERN = "alarm_pattern"
         const val KEY_MAX_VOLUME = "max_volume"
         const val KEY_LOOP = "loop_seconds"
         const val KEY_COOLDOWN = "cooldown_seconds"

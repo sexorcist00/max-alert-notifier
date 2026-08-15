@@ -71,11 +71,53 @@ def klaxon() -> list[float]:
     return out
 
 
+def mix(seconds: float, frequencies: tuple[float, ...]) -> list[float]:
+    total = int(SAMPLE_RATE * seconds)
+    out = []
+    for index in range(total):
+        t = index / SAMPLE_RATE
+        value = sum(math.sin(2 * math.pi * frequency * t) for frequency in frequencies)
+        out.append(AMPLITUDE * value / len(frequencies))
+    return out
+
+
+def temporal_three() -> list[float]:
+    """ISO 8201 / ANSI-ASA S3.41 T-3: the international evacuation signal.
+
+    0.5 s on, 0.5 s off, three times, then 1.5 s of silence. 3100 Hz is the frequency
+    smoke alarms use -- it cuts through sleep better than a low tone.
+    """
+    out: list[float] = []
+    for _ in range(2):
+        for _ in range(3):
+            out += square(0.5, 3100) + silence(0.5)
+        out += silence(1.0)  # 0.5 already counted above -> 1.5 s total gap
+    return out
+
+
+def temporal_four() -> list[float]:
+    """ANSI-ASA S3.41 T-4: the carbon-monoxide pattern, four pulses then a long pause."""
+    out: list[float] = []
+    for _ in range(2):
+        for _ in range(4):
+            out += square(0.1, 3100) + silence(0.1)
+        out += silence(4.8)
+    return out
+
+
+def emergency_attention() -> list[float]:
+    """The EAS / Wireless Emergency Alerts attention signal: 853 Hz and 960 Hz together."""
+    return mix(4.0, (853.0, 960.0))
+
+
 TONES = {
     "alarm_two_tone": two_tone,
     "alarm_siren": siren,
     "alarm_pulse": pulse,
     "alarm_klaxon": klaxon,
+    "alarm_t3": temporal_three,
+    "alarm_t4": temporal_four,
+    "alarm_wea": emergency_attention,
 }
 
 

@@ -32,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -206,8 +207,48 @@ private fun SettingsScreen() {
                 ) {
                     Text("Выбрать свой файл")
                 }
+                HorizontalDivider()
+                Text("Режим тревоги", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "Ритм задаёт и вибрацию, и фонарик. Шаблоны взяты из стандартов, а не " +
+                        "придуманы: тот, кто слышал пожарный извещатель, поймёт без объяснений.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                AlarmPattern.entries.forEach { pattern ->
+                    PatternRow(
+                        pattern = pattern,
+                        selected = settings.pattern == pattern,
+                        onSelect = { update { it.copy(patternId = pattern.id) } },
+                    )
+                }
+
+                HorizontalDivider()
                 SwitchRow("Вибрация", settings.vibrate) { value ->
                     update { it.copy(vibrate = value) }
+                }
+                if (settings.vibrate) {
+                    Text(
+                        "Сила вибрации: ${settings.vibrationStrength}%",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Slider(
+                        value = settings.vibrationStrength.toFloat(),
+                        onValueChange = { value ->
+                            update { it.copy(vibrationStrength = value.toInt().coerceIn(10, 100)) }
+                        },
+                        valueRange = 10f..100f,
+                        steps = 8,
+                    )
+                }
+                SwitchRow("Мигать фонариком", settings.flashlight) { value ->
+                    update { it.copy(flashlight = value) }
+                }
+                if (settings.flashlight) {
+                    Text(
+                        "Частота вспышек ограничена тремя в секунду — быстрее опасно для людей " +
+                            "с фоточувствительной эпилепсией (порог WCAG 2.3.1).",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
                 SwitchRow("Выкручивать громкость будильника", settings.forceMaxVolume) { value ->
                     update { it.copy(forceMaxVolume = value) }
@@ -493,6 +534,9 @@ private fun Context.openDndAccess() {
 
 /** Bundled tones plus the device's own alarm sound; anything else is a picked file. */
 private val SOUND_CHOICES = listOf(
+    "${AlarmController.BUNDLED_PREFIX}alarm_t3" to "Эвакуация T-3 (ISO 8201)",
+    "${AlarmController.BUNDLED_PREFIX}alarm_t4" to "Угарный газ T-4 (S3.41)",
+    "${AlarmController.BUNDLED_PREFIX}alarm_wea" to "Экстренное оповещение (EAS)",
     null to "Системный будильник",
     "${AlarmController.BUNDLED_PREFIX}alarm_two_tone" to "Двухтональный сигнал",
     "${AlarmController.BUNDLED_PREFIX}alarm_siren" to "Сирена",
@@ -539,6 +583,23 @@ private fun AlertStateCard() {
             ) {
                 Text("Снять вручную")
             }
+        }
+    }
+}
+
+@Composable
+private fun PatternRow(pattern: AlarmPattern, selected: Boolean, onSelect: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, onClick = onSelect)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = onSelect)
+        Column {
+            Text(pattern.label)
+            Text(pattern.standard, style = MaterialTheme.typography.labelSmall)
         }
     }
 }
