@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private val TABS = listOf("Тревога", "Наблюдение", "Журнал")
+private val TABS = listOf("Главное", "Сигнал", "Журнал")
 
 /**
  * Three screens instead of one long scroll: how it sounds, what it watches, what it saw.
@@ -123,6 +123,9 @@ private fun HomeScreen() {
     val store = remember { SettingsStore(context) }
     var settings by remember { mutableStateOf(store.load()) }
     var tab by remember { mutableIntStateOf(0) }
+    // A scroll position per tab: a shared one drops you into the middle of a short tab
+    // after scrolling a long one.
+    val scrollStates = List(TABS.size) { rememberScrollState() }
 
     fun update(transform: (AlertSettings) -> AlertSettings) {
         settings = transform(settings)
@@ -157,6 +160,8 @@ private fun HomeScreen() {
                     actions = {
                         // The master switch belongs where it is always reachable: whether the
                         // phone is on watch is the one thing worth knowing from any tab.
+                        Text("Дежурство", style = MaterialTheme.typography.labelLarge)
+                        Spacer(Modifier.width(Spacing.sm))
                         Switch(
                             checked = settings.enabled,
                             onCheckedChange = { value ->
@@ -167,7 +172,7 @@ private fun HomeScreen() {
                         Spacer(Modifier.width(Spacing.sm))
                     },
                 )
-                StatusStrip(settings) { tab = 1 }
+                StatusStrip(settings) { tab = 0 }
                 TabRow(selectedTabIndex = tab) {
                     TABS.forEachIndexed { index, title ->
                         Tab(
@@ -184,7 +189,7 @@ private fun HomeScreen() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollStates[tab])
                 .padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
@@ -192,8 +197,8 @@ private fun HomeScreen() {
             UpdateCard()
 
             when (tab) {
-                0 -> AlarmTab(settings, ::update)
-                1 -> WatchTab(settings, ::update)
+                0 -> WatchTab(settings, ::update)
+                1 -> AlarmTab(settings, ::update)
                 else -> LogTab(settings, ::update)
             }
         }
@@ -513,6 +518,17 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
     var yellowText by remember { mutableStateOf(settings.yellowKeywords.joinToString(", ")) }
     var deactivationText by remember { mutableStateOf(settings.deactivationKeywords.joinToString(", ")) }
 
+    SectionCard("Что сейчас настроено") {
+        Text(
+            ConfigSummary.describe(
+                settings,
+                AlarmSounds.CATALOGUE.firstOrNull { it.uri == settings.soundUri }?.label
+                    ?: "свой файл",
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+
     SetupCard(settings)
 
     AccessCard(context)
@@ -592,7 +608,7 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
         )
     }
 
-    SectionCard("Версия") {
+    CollapsibleCard("Версия и обновления", BuildConfig.VERSION_NAME) {
         Text("Установлено: ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
         Text(
             if (BuildConfig.VERSION_NAME == "0.0.0") {
@@ -612,7 +628,7 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
         }
     }
 
-    SectionCard("Чтобы не убивала система") {
+    CollapsibleCard("Чтобы не убивала система", "Huawei закрывает фон") {
         Text(
             "Huawei закрывает фоновые приложения. Разрешите работу в фоне и снимите ограничения " +
                 "батареи, иначе тревога однажды не прозвенит.",
@@ -920,6 +936,35 @@ private fun LogTab(settings: AlertSettings, update: ((AlertSettings) -> AlertSet
 }
 
 /* --------------------------------------------------------------- pieces */
+
+@Composable
+private fun CollapsibleCard(
+    title: String,
+    subtitle: String? = null,
+    startOpen: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    var open by remember { mutableStateOf(startOpen) }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(selected = open, onClick = { open = !open }),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.titleMedium)
+                    subtitle?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+                }
+                Text(if (open) "Свернуть" else "Открыть", style = MaterialTheme.typography.labelLarge)
+            }
+            AnimatedVisibility(visible = open) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) { content() }
+            }
+        }
+    }
+}
 
 @Composable
 private fun SectionCard(title: String, content: @Composable () -> Unit) {
