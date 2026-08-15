@@ -1,14 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Тревога из MAX</string>
+    <string name="app_name">Код красный</string>
     <string name="channel_alarm">Тревога</string>
     <string name="channel_alarm_description">Громкий сигнал по сообщению из отслеживаемого чата</string>
-    <string name="channel_watch">Подключение к MAX</string>
-    <string name="alarm_title">MAX: %1$s</string>
+    <string name="channel_watch">Дежурный режим</string>
+    <string name="alarm_title">КОД КРАСНЫЙ · %1$s</string>
     <string name="stop">СТОП</string>
+    <string name="duty_title">Дежурю</string>
+    <string name="duty_alert_active">КОД КРАСНЫЙ активен</string>
+    <string name="duty_stand_down">Выключить</string>
+    <string name="watch_idle">Запускаюсь…</string>
     <string name="watch_connecting">Подключаюсь к MAX…</string>
     <string name="watch_online">На связи, слушаю чат</string>
     <string name="watch_offline">Нет связи с MAX</string>
     <string name="watch_needs_login">Нужен вход в аккаунт MAX</string>
+    <string name="watch_notifications_only">Слушаю уведомления МАКСа</string>
     <string name="watch_reconnect">Обрыв связи, переподключусь через %1$d с</string>
 </resources>

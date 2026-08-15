@@ -34,6 +34,7 @@ object AlarmController {
 
     private const val TAG = "MaxAlert"
     private const val CHANNEL_ID = "max-alert-alarm"
+    const val BUNDLED_PREFIX = "raw:"
     private const val NOTIFICATION_ID = 4242
 
     var ringing by mutableStateOf(false)
@@ -75,6 +76,8 @@ object AlarmController {
 
     fun stop(context: Context) {
         val app = context.applicationContext
+        // The person has been told; "Код красный" stays standing until the chat calls it off.
+        AlertState.silence(app)
         handler.removeCallbacks(autoStop)
 
         runCatching { player?.stop() }
@@ -169,7 +172,7 @@ object AlarmController {
     }
 
     private fun startSound(context: Context, settings: AlertSettings) {
-        val uri = alarmSound(settings)
+        val uri = alarmSound(context, settings)
         if (uri == null) {
             Log.w(TAG, "no alarm sound available on this device")
             return
@@ -190,11 +193,18 @@ object AlarmController {
         }.onFailure { Log.e(TAG, "cannot play the alarm sound", it) }
     }
 
-    private fun alarmSound(settings: AlertSettings): Uri? =
-        settings.soundUri?.let(Uri::parse)
+    private fun alarmSound(context: Context, settings: AlertSettings): Uri? {
+        val configured = settings.soundUri
+        if (configured != null && configured.startsWith(BUNDLED_PREFIX)) {
+            val name = configured.removePrefix(BUNDLED_PREFIX)
+            val id = context.resources.getIdentifier(name, "raw", context.packageName)
+            if (id != 0) return Uri.parse("android.resource://${context.packageName}/$id")
+        }
+        return configured?.let(Uri::parse)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+    }
 
     private fun startVibration(context: Context, settings: AlertSettings) {
         if (!settings.vibrate) return

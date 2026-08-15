@@ -10,9 +10,7 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
-        val settings = SettingsStore(context).load()
-        if (!settings.enabled || !settings.useDirectConnection) return
-        if (!MaxSession(context).loggedIn) return
+        if (!SettingsStore(context).load().enabled) return
         MaxWatchService.start(context)
     }
 }

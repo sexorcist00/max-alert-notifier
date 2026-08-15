@@ -21,7 +21,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -40,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -59,7 +63,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         EventLog.load(this)
+        AlertState.load(this)
         requestNotificationPermission()
+        // Duty mode belongs in the shade whenever the watcher is on.
+        if (SettingsStore(this).load().enabled) MaxWatchService.start(this)
         setContent {
             MaxAlertTheme {
                 SettingsScreen()
@@ -81,6 +88,7 @@ private fun SettingsScreen() {
     val store = remember { SettingsStore(context) }
     var settings by remember { mutableStateOf(store.load()) }
     var keywordsText by remember { mutableStateOf(settings.keywords.joinToString(", ")) }
+    var deactivationText by remember { mutableStateOf(settings.deactivationKeywords.joinToString(", ")) }
     var loopText by remember { mutableStateOf(settings.loopSeconds.toString()) }
     var cooldownText by remember { mutableStateOf(settings.cooldownSeconds.toString()) }
 
@@ -99,7 +107,7 @@ private fun SettingsScreen() {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Тревога из MAX") }) },
+        topBar = { TopAppBar(title = { Text("Код красный") }) },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -109,12 +117,20 @@ private fun SettingsScreen() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            AlertStateCard()
+
             AccessCard(context)
 
-            SectionCard("Сторож") {
+            SectionCard("Дежурный режим") {
                 SwitchRow("Слежу за чатом", settings.enabled) { value ->
                     update { it.copy(enabled = value) }
+                    if (value) MaxWatchService.start(context) else MaxWatchService.stop(context)
                 }
+                Text(
+                    "Пока дежурство включено, в шторке висит закреплённое уведомление — " +
+                        "оттуда же можно выключить одним касанием.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Text(
                     "Приложение-источник: МАКС (${settings.sourcePackage})",
                     style = MaterialTheme.typography.bodySmall,
@@ -148,9 +164,32 @@ private fun SettingsScreen() {
                     supportingText = { Text("Пусто — тревога на любое сообщение в этом чате. Регистр не важен.") },
                     modifier = Modifier.fillMaxWidth(),
                 )
+                OutlinedTextField(
+                    value = deactivationText,
+                    onValueChange = { value ->
+                        deactivationText = value
+                        update { it.copy(deactivationKeywords = Matcher.parseKeywords(value)) }
+                    },
+                    label = { Text("Слова отбоя через запятую") },
+                    supportingText = { Text("Такое сообщение в том же чате снимает «Код красный» — в том числе задним числом, когда телефон был без связи.") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
 
             SectionCard("Тревога") {
+                Text("Звук тревоги", style = MaterialTheme.typography.bodyMedium)
+                SOUND_CHOICES.forEach { (value, label) ->
+                    SoundRow(
+                        label = label,
+                        selected = settings.soundUri == value,
+                        onSelect = { update { it.copy(soundUri = value) } },
+                    )
+                }
+                SoundRow(
+                    label = "Свой файл",
+                    selected = settings.soundUri != null && SOUND_CHOICES.none { it.first == settings.soundUri },
+                    onSelect = {},
+                )
                 OutlinedButton(
                     onClick = {
                         val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
@@ -165,7 +204,7 @@ private fun SettingsScreen() {
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(if (settings.soundUri == null) "Звук: системный будильник" else "Звук: выбран свой")
+                    Text("Выбрать свой файл")
                 }
                 SwitchRow("Вибрация", settings.vibrate) { value ->
                     update { it.copy(vibrate = value) }
@@ -450,4 +489,70 @@ private fun Context.openDndAccess() {
     val intent = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     runCatching { startActivity(intent) }
+}
+
+/** Bundled tones plus the device's own alarm sound; anything else is a picked file. */
+private val SOUND_CHOICES = listOf(
+    null to "Системный будильник",
+    "${AlarmController.BUNDLED_PREFIX}alarm_two_tone" to "Двухтональный сигнал",
+    "${AlarmController.BUNDLED_PREFIX}alarm_siren" to "Сирена",
+    "${AlarmController.BUNDLED_PREFIX}alarm_pulse" to "Резкие писки",
+    "${AlarmController.BUNDLED_PREFIX}alarm_klaxon" to "Низкий клаксон",
+)
+
+@Composable
+private fun AlertStateCard() {
+    val context = LocalContext.current
+    val state = AlertState.state
+    if (!state.active) return
+
+    val format = remember { SimpleDateFormat("d MMMM, HH:mm", Locale.getDefault()) }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.error),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                "КОД КРАСНЫЙ",
+                color = Color.White,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            Text("${state.chat}: ${state.text}", color = Color.White)
+            Text(
+                "Объявлен ${format.format(Date(state.since))}" +
+                    if (state.silenced) " · звук выключен, состояние держится" else "",
+                color = Color.White,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Button(
+                onClick = {
+                    AlarmController.stop(context)
+                    AlertState.clear(context)
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.White,
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Снять вручную")
+            }
+        }
+    }
+}
+
+@Composable
+private fun SoundRow(label: String, selected: Boolean, onSelect: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, onClick = onSelect)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = onSelect)
+        Text(label)
+    }
 }

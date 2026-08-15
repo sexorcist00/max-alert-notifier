@@ -16,6 +16,9 @@ sealed interface Verdict {
     /** [keyword] is null when the settings say "any message in this chat". */
     data class Match(val keyword: String?) : Verdict
 
+    /** The all-clear: this message lifts a standing alert. */
+    data class Deactivate(val keyword: String) : Verdict
+
     data class Skip(val reason: String) : Verdict
 }
 
@@ -31,6 +34,12 @@ object Matcher {
         }
 
         if (notification.text.isBlank()) return Verdict.Skip("пустой текст")
+
+        // The all-clear wins over the alarm word: "тревога отменена" must not ring.
+        settings.deactivationKeywords
+            .firstOrNull { keyword -> notification.text.contains(keyword, ignoreCase = true) }
+            ?.let { keyword -> return Verdict.Deactivate(keyword) }
+
         if (settings.keywords.isEmpty()) return Verdict.Match(null)
 
         val hit = settings.keywords.firstOrNull { notification.text.contains(it, ignoreCase = true) }

@@ -3,7 +3,6 @@ package ru.maxalert.notifier
 import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import android.util.Log
 
 /**
  * The watcher. Android binds this service itself once the user grants notification access,
@@ -12,13 +11,13 @@ import android.util.Log
  */
 class AlertListenerService : NotificationListenerService() {
 
-    private val gate = TriggerGate()
     private lateinit var settingsStore: SettingsStore
 
     override fun onCreate() {
         super.onCreate()
         settingsStore = SettingsStore(this)
         EventLog.load(this)
+        AlertState.load(this)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
@@ -26,30 +25,15 @@ class AlertListenerService : NotificationListenerService() {
         if (sbn.packageName != settings.sourcePackage) return
         if (isNoise(sbn)) return
 
-        val chat = extractChat(sbn)
-        val text = extractText(sbn)
-        val incoming = IncomingNotification(sbn.packageName, chat, text)
-
-        when (val verdict = Matcher.evaluate(incoming, settings)) {
-            is Verdict.Skip -> {
-                EventLog.add(this, EventLog.Entry(System.currentTimeMillis(), chat, text, false, verdict.reason))
-            }
-
-            is Verdict.Match -> {
-                val key = "${sbn.key}|${sbn.postTime}"
-                if (!gate.allow(key, settings.cooldownSeconds)) {
-                    EventLog.add(
-                        this,
-                        EventLog.Entry(System.currentTimeMillis(), chat, text, false, "повтор или пауза после срабатывания"),
-                    )
-                    return
-                }
-                val reason = verdict.keyword?.let { "совпало слово «$it»" } ?: "любое сообщение в чате"
-                EventLog.add(this, EventLog.Entry(System.currentTimeMillis(), chat, text, true, reason))
-                Log.i("MaxAlert", "alarm: $chat / $reason")
-                AlarmController.trigger(this, settings, chat, text)
-            }
-        }
+        AlertPipeline.handle(
+            context = this,
+            settings = settings,
+            chat = extractChat(sbn),
+            text = extractText(sbn),
+            time = sbn.postTime,
+            key = "notification:${sbn.key}:${sbn.postTime}",
+            source = "уведомление МАКСа",
+        )
     }
 
     /** Group summaries and ongoing notifications repeat what the real message already said. */

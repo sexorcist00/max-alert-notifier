@@ -8,6 +8,8 @@ data class AlertSettings(
     val sourcePackage: String = MAX_PACKAGE,
     val chatFilter: String = "",
     val keywords: List<String> = emptyList(),
+    /** Words that lift a standing alert, said in the same chat. */
+    val deactivationKeywords: List<String> = emptyList(),
     val vibrate: Boolean = true,
     val forceMaxVolume: Boolean = true,
     val loopSeconds: Int = 300,
@@ -32,6 +34,7 @@ class SettingsStore(context: Context) {
             sourcePackage = prefs.getString(KEY_PACKAGE, defaults.sourcePackage) ?: defaults.sourcePackage,
             chatFilter = prefs.getString(KEY_CHAT, defaults.chatFilter) ?: defaults.chatFilter,
             keywords = Matcher.parseKeywords(prefs.getString(KEY_KEYWORDS, "") ?: ""),
+            deactivationKeywords = Matcher.parseKeywords(prefs.getString(KEY_DEACTIVATION, "") ?: ""),
             vibrate = prefs.getBoolean(KEY_VIBRATE, defaults.vibrate),
             forceMaxVolume = prefs.getBoolean(KEY_MAX_VOLUME, defaults.forceMaxVolume),
             loopSeconds = prefs.getInt(KEY_LOOP, defaults.loopSeconds),
@@ -47,6 +50,7 @@ class SettingsStore(context: Context) {
             .putString(KEY_PACKAGE, settings.sourcePackage)
             .putString(KEY_CHAT, settings.chatFilter)
             .putString(KEY_KEYWORDS, settings.keywords.joinToString(", "))
+            .putString(KEY_DEACTIVATION, settings.deactivationKeywords.joinToString(", "))
             .putBoolean(KEY_VIBRATE, settings.vibrate)
             .putBoolean(KEY_MAX_VOLUME, settings.forceMaxVolume)
             .putInt(KEY_LOOP, settings.loopSeconds)
@@ -62,6 +66,7 @@ class SettingsStore(context: Context) {
         const val KEY_PACKAGE = "source_package"
         const val KEY_CHAT = "chat_filter"
         const val KEY_KEYWORDS = "keywords"
+        const val KEY_DEACTIVATION = "deactivation_keywords"
         const val KEY_VIBRATE = "vibrate"
         const val KEY_MAX_VOLUME = "max_volume"
         const val KEY_LOOP = "loop_seconds"

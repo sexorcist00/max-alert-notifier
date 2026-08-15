@@ -18,6 +18,23 @@ class MaxSession(context: Context) {
             prefs.edit().putString(KEY_DEVICE_ID, generated).apply()
         }
 
+    /** Stable per-install id the Android client sends alongside the device id. */
+    val instanceId: String
+        get() = prefs.getString(KEY_INSTANCE_ID, null) ?: java.util.UUID.randomUUID().toString().also { generated ->
+            prefs.edit().putString(KEY_INSTANCE_ID, generated).apply()
+        }
+
+    val clientSessionId: Int
+        get() = prefs.getInt(KEY_CLIENT_SESSION, 0).takeIf { it != 0 }
+            ?: (1..70).random().also { generated ->
+                prefs.edit().putInt(KEY_CLIENT_SESSION, generated).apply()
+            }
+
+    /** Time of the last message we acted on, so a reconnect can replay only what we missed. */
+    var lastSeenTime: Long
+        get() = prefs.getLong(KEY_LAST_SEEN, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_SEEN, value).apply()
+
     var phone: String?
         get() = prefs.getString(KEY_PHONE, null)
         set(value) = prefs.edit().putString(KEY_PHONE, value).apply()
@@ -45,6 +62,9 @@ class MaxSession(context: Context) {
     private companion object {
         const val PREFS = "max-session"
         const val KEY_DEVICE_ID = "device_id"
+        const val KEY_INSTANCE_ID = "instance_id"
+        const val KEY_CLIENT_SESSION = "client_session_id"
+        const val KEY_LAST_SEEN = "last_seen_time"
         const val KEY_PHONE = "phone"
         const val KEY_AUTH_TOKEN = "auth_token"
         const val KEY_LOGIN_TOKEN = "login_token"

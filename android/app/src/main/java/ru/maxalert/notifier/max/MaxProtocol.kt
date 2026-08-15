@@ -37,6 +37,7 @@ object MaxProtocol {
     const val OP_AUTH_REQUEST = 17
     const val OP_AUTH = 18
     const val OP_LOGIN = 19
+    const val OP_CHAT_HISTORY = 49
     const val OP_NOTIF_MESSAGE = 128
 
     const val APP_VERSION = "26.7.15"
@@ -90,6 +91,24 @@ object MaxProtocol {
         return Frame(cmd, seq, opcode, payload)
     }
 
+    /**
+     * The client introduces itself as the Android app: only that path is allowed to send the
+     * fingerprint instead of solving a captcha (see [MaxFingerprint]).
+     */
+    fun androidUserAgent(locale: String, timezone: String): Map<String, Any?> = linkedMapOf(
+        "deviceType" to "ANDROID",
+        "appVersion" to MaxFingerprint.APP_VERSION,
+        "osVersion" to "Android 13",
+        "timezone" to timezone,
+        "screen" to "405dpi 405dpi 1080x2400",
+        "pushDeviceType" to "GCM",
+        "arch" to MaxFingerprint.ARCH,
+        "locale" to locale,
+        "buildNumber" to MaxFingerprint.BUILD_NUMBER,
+        "deviceName" to "Samsung SM-A525F",
+        "deviceLocale" to locale,
+    )
+
     fun webUserAgent(locale: String, timezone: String): Map<String, Any?> = linkedMapOf(
         "deviceType" to "WEB",
         "locale" to locale,
@@ -117,6 +136,11 @@ object MaxProtocol {
             is Int -> packer.packInt(value)
             is Long -> packer.packLong(value)
             is Double -> packer.packDouble(value)
+            is ByteArray -> {
+                packer.packBinaryHeader(value.size)
+                packer.writePayload(value)
+            }
+
             is Map<*, *> -> {
                 packer.packMapHeader(value.size)
                 value.forEach { (key, item) ->

@@ -7,22 +7,18 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
-import okio.ByteString
-import okio.ByteString.Companion.toByteString
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.util.TimeZone
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * The app's own connection to MAX -- the half that does not depend on MAX delivering a
- * notification. Logs in as the user (phone + SMS code), holds the websocket, and reports
- * every incoming message.
+ * notification. Logs in as the user (phone + SMS code), holds the socket, and reports every
+ * incoming message.
  */
 class MaxClient(
     private val session: MaxSession,
@@ -35,42 +31,35 @@ class MaxClient(
 
     class MaxError(message: String) : Exception(message)
 
-    private val http = OkHttpClient.Builder()
-        .pingInterval(20, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS)
-        .build()
+    private val transport = MaxTransport()
 
     private val pending = ConcurrentHashMap<Int, CompletableDeferred<Map<String, Any?>>>()
     private val sequence = AtomicInteger(0)
     private val chatTitles = ConcurrentHashMap<Long, String>()
 
-    private var socket: WebSocket? = null
     private var pingJob: Job? = null
-    private var connected = CompletableDeferred<Unit>()
+    private var readerJob: Job? = null
+    private var callsSeed: Long? = null
 
     val chats: Map<Long, String> get() = chatTitles
 
     suspend fun connect() {
         close()
         onState(State.CONNECTING, null)
-        connected = CompletableDeferred()
 
-        val request = Request.Builder()
-            .url(MaxProtocol.WEBSOCKET_URL)
-            .header("Origin", MaxProtocol.ORIGIN)
-            .header("User-Agent", MaxProtocol.HEADER_USER_AGENT)
-            .build()
+        withContext(Dispatchers.IO) { transport.connect() }
+        readerJob = scope.launch(Dispatchers.IO) { readLoop() }
 
-        socket = http.newWebSocket(request, Listener())
-        withTimeout(REQUEST_TIMEOUT_MS) { connected.await() }
-
-        invoke(
+        val handshake = invoke(
             MaxProtocol.OP_SESSION_INIT,
             linkedMapOf(
-                "userAgent" to MaxProtocol.webUserAgent(LOCALE, TimeZone.getDefault().id),
+                "mt_instanceid" to session.instanceId,
+                "userAgent" to MaxProtocol.androidUserAgent(LOCALE, TimeZone.getDefault().id),
+                "clientSessionId" to session.clientSessionId,
                 "deviceId" to session.deviceId,
             ),
         )
+        callsSeed = handshake["callsSeed"] as? Long
 
         pingJob = scope.launch {
             while (true) {
@@ -81,11 +70,42 @@ class MaxClient(
         }
     }
 
+    private suspend fun readLoop() {
+        while (scope.isActive) {
+            val frame = try {
+                transport.readFrame()
+            } catch (error: IOException) {
+                fail(error.message ?: "обрыв связи")
+                return
+            }
+            if (frame == null) {
+                fail("соединение закрыто сервером")
+                return
+            }
+            runCatching { handleFrame(frame) }
+                .onFailure { Log.w(TAG, "bad frame: ${it.message}") }
+        }
+    }
+
+    private fun fail(reason: String) {
+        pending.values.forEach { it.completeExceptionally(MaxError(reason)) }
+        pending.clear()
+        onState(State.OFFLINE, reason)
+    }
+
     /** Asks MAX to send an SMS code. Returns how many digits the code has. */
     suspend fun requestCode(phone: String): Int {
+        val seed = callsSeed
+            ?: throw MaxError("Сервер MAX не прислал seed рукопожатия — попробуйте ещё раз")
+
         val response = invoke(
             MaxProtocol.OP_AUTH_REQUEST,
-            linkedMapOf("phone" to phone, "type" to "START_AUTH"),
+            linkedMapOf(
+                "phone" to phone,
+                "type" to "START_AUTH",
+                // Without this the server answers captcha.validation-failed and sends nothing.
+                "mode" to MaxFingerprint.generate(seed, session.deviceId),
+            ),
         )
         val token = response["token"] as? String
             ?: throw MaxError("MAX не вернул токен запроса кода")
@@ -154,25 +174,64 @@ class MaxClient(
         return true
     }
 
+    /**
+     * Messages posted to [chatId] after [sinceTime], oldest first.
+     *
+     * This is what makes the alarm a state rather than an event: after the phone was offline
+     * we replay what was said and decide from the whole run, not from one notification.
+     */
+    suspend fun history(chatId: Long, sinceTime: Long, limit: Int = 200): List<IncomingMaxMessage> {
+        val response = invoke(
+            MaxProtocol.OP_CHAT_HISTORY,
+            linkedMapOf(
+                "chatId" to chatId,
+                "from" to sinceTime,
+                "forward" to limit,
+                "backward" to 0,
+                "getMessages" to true,
+                "getChat" to false,
+                "interactive" to false,
+            ),
+        )
+
+        val messages = response["messages"] as? List<*> ?: return emptyList()
+        return messages.mapNotNull { item ->
+            @Suppress("UNCHECKED_CAST")
+            val body = item as? Map<String, Any?> ?: return@mapNotNull null
+            val time = (body["time"] as? Long) ?: return@mapNotNull null
+            if (time <= sinceTime) return@mapNotNull null
+            IncomingMaxMessage(
+                chatId = chatId,
+                chatTitle = chatTitles[chatId] ?: "",
+                senderId = (body["sender"] as? Long) ?: 0L,
+                messageId = (body["id"] as? String) ?: (body["id"] as? Long)?.toString() ?: time.toString(),
+                text = body["text"] as? String ?: "",
+                time = time,
+            )
+        }.sortedBy { message -> message.time }
+    }
+
     fun close() {
         pingJob?.cancel()
         pingJob = null
-        runCatching { socket?.close(1000, null) }
-        socket = null
+        readerJob?.cancel()
+        readerJob = null
+        transport.close()
         pending.values.forEach { it.completeExceptionally(MaxError("соединение закрыто")) }
         pending.clear()
     }
 
     private suspend fun invoke(opcode: Int, payload: Map<String, Any?>): Map<String, Any?> {
-        val active = socket ?: throw MaxError("нет соединения")
+        if (!transport.connected) throw MaxError("нет соединения")
         val seq = sequence.getAndIncrement() % 0x10000
         val answer = CompletableDeferred<Map<String, Any?>>()
         pending[seq] = answer
 
-        val frame = MaxProtocol.encode(opcode, seq, payload).toByteString()
-        if (!active.send(frame)) {
+        try {
+            withContext(Dispatchers.IO) { transport.send(MaxProtocol.encode(opcode, seq, payload)) }
+        } catch (error: IOException) {
             pending.remove(seq)
-            throw MaxError("не удалось отправить запрос")
+            throw MaxError(error.message ?: "не удалось отправить запрос")
         }
 
         return try {
@@ -236,33 +295,6 @@ class MaxClient(
             text = text,
             time = (body["time"] as? Long) ?: System.currentTimeMillis(),
         )
-    }
-
-    private inner class Listener : WebSocketListener() {
-
-        override fun onOpen(webSocket: WebSocket, response: Response) {
-            connected.complete(Unit)
-        }
-
-        override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-            handleFrame(bytes.toByteArray())
-        }
-
-        override fun onMessage(webSocket: WebSocket, text: String) {
-            handleFrame(text.toByteArray())
-        }
-
-        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-            Log.w(TAG, "websocket failed: ${t.message}")
-            if (!connected.isCompleted) connected.completeExceptionally(MaxError(t.message ?: "нет сети"))
-            pending.values.forEach { it.completeExceptionally(MaxError(t.message ?: "обрыв связи")) }
-            pending.clear()
-            onState(State.OFFLINE, t.message)
-        }
-
-        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-            onState(State.OFFLINE, reason.ifEmpty { null })
-        }
     }
 
     private companion object {
