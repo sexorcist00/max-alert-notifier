@@ -23,6 +23,9 @@ import kotlinx.coroutines.launch
 import ru.maxalert.notifier.max.IncomingMaxMessage
 import ru.maxalert.notifier.max.MaxClient
 import ru.maxalert.notifier.max.MaxSession
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Duty mode.
@@ -65,6 +68,14 @@ class MaxWatchService : Service() {
             ACTION_STOP -> {
                 stopSelf()
                 return START_NOT_STICKY
+            }
+
+            ACTION_CLEAR_ALERT -> {
+                // Lifting the alert from the shade: silence the sound and drop the state.
+                AlarmController.stop(this)
+                AlertState.clear(this)
+                refreshNotification()
+                return START_STICKY
             }
         }
 
@@ -217,28 +228,71 @@ class MaxWatchService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        // The pinned line is the same truth as the screen: whatever level is standing, plus
-        // the connection state underneath it.
+        val clear = PendingIntent.getService(
+            this,
+            3,
+            Intent(this, MaxWatchService::class.java).setAction(ACTION_CLEAR_ALERT),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        // The pinned line is the same truth as the screen. Collapsed it answers one question
+        // -- what is standing right now -- and the rest only appears when expanded, so the
+        // shade stays readable at a glance.
         val alert = AlertState.state
+        val icon = when {
+            alert.active -> R.drawable.ic_alert
+            online || !settingsStore.load().useDirectConnection -> R.drawable.ic_duty
+            else -> R.drawable.ic_offline
+        }
+
         val title = if (alert.active) alert.level.title else getString(R.string.duty_title)
-        val body = if (alert.active) {
-            val silenced = if (alert.silenced) " · звук выключен" else ""
-            "${alert.chat}: ${alert.text}".take(160) + silenced + "\n$text"
+        val summary = if (alert.active) {
+            "${alert.chat}: ${alert.text}".take(120)
         } else {
             text
         }
+        val details = buildString {
+            if (alert.active) {
+                append(alert.text.take(400))
+                append("\n\n")
+                append("Чат: ${alert.chat.ifBlank { "неизвестен" }}")
+                append("\nОбъявлен: ${TIME_FORMAT.format(Date(alert.since))}")
+                if (alert.silenced) append("\nЗвук выключен, состояние держится")
+                append("\nСвязь: $text")
+            } else {
+                append(text)
+                append("\nИсточники: ")
+                append(if (settingsStore.load().useDirectConnection) "уведомления МАКСа + своё подключение" else "уведомления МАКСа")
+                if (session.lastOnlineAt > 0 && !online) {
+                    append("\nПоследний контакт: ${TIME_FORMAT.format(Date(session.lastOnlineAt))}")
+                }
+            }
+        }
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_alert)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(icon)
+            .setLargeIcon(NotificationArt.badge(alert.level, online))
+            .setColor(alert.level.colorArgb.toInt())
+            .setColorized(alert.active)
             .setContentTitle(title)
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentText(summary)
+            .setSubText(if (alert.active) "Оповещение о тревоге" else null)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(details))
             .setOngoing(true)
-            .setShowWhen(false)
+            // A standing alert shows when it was declared; ordinary duty has no moment worth
+            // stamping, and a ticking clock there would be noise.
+            .setShowWhen(alert.active)
+            .setWhen(if (alert.active) alert.since else System.currentTimeMillis())
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(if (alert.active) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_SERVICE)
             .setContentIntent(open)
-            .addAction(R.drawable.ic_alert, getString(R.string.duty_stand_down), standDown)
-            .build()
+
+        if (alert.active) {
+            builder.addAction(R.drawable.ic_duty, "Снять", clear)
+        }
+        builder.addAction(R.drawable.ic_offline, getString(R.string.duty_stand_down), standDown)
+
+        return builder.build()
     }
 
     companion object {
@@ -248,9 +302,11 @@ class MaxWatchService : Service() {
         private const val MAX_BACKOFF_MS = 300_000L
         private const val NEEDS_LOGIN_RETRY_MS = 60_000L
         private const val IDLE_POLL_MS = 30_000L
+        private val TIME_FORMAT = SimpleDateFormat("HH:mm", Locale.getDefault())
 
         const val ACTION_STOP = "ru.maxalert.notifier.STOP_WATCH"
         const val ACTION_STAND_DOWN = "ru.maxalert.notifier.STAND_DOWN"
+        const val ACTION_CLEAR_ALERT = "ru.maxalert.notifier.CLEAR_ALERT"
 
         var status by mutableStateOf("выключено")
             private set
