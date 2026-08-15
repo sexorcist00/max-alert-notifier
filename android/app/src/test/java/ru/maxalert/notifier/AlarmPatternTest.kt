@@ -11,9 +11,9 @@ import org.junit.Test
 class AlarmPatternNegativeCasesTest {
 
     @Test
-    fun `an unknown id falls back to the evacuation pattern`() {
-        assertEquals(AlarmPattern.TEMPORAL_3, AlarmPattern.fromId("does-not-exist"))
-        assertEquals(AlarmPattern.TEMPORAL_3, AlarmPattern.fromId(null))
+    fun `an unknown id falls back to the default cadence`() {
+        assertEquals(AlarmPattern.DEFAULT, AlarmPattern.fromId("does-not-exist"))
+        assertEquals(AlarmPattern.DEFAULT, AlarmPattern.fromId(null))
     }
 
     @Test

@@ -40,12 +40,16 @@ class MaxWatchService : Service() {
     private var client: MaxClient? = null
     private var loop: Job? = null
 
+    /** Redraws the pinned line the moment the level changes, whichever source changed it. */
+    private val alertListener: () -> Unit = { refreshNotification() }
+
     override fun onCreate() {
         super.onCreate()
         settingsStore = SettingsStore(this)
         session = MaxSession(this)
         EventLog.load(this)
         AlertState.load(this)
+        AlertState.addListener(alertListener)
         startForeground(NOTIFICATION_ID, dutyNotification(getString(R.string.watch_idle)))
     }
 
@@ -70,6 +74,7 @@ class MaxWatchService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        AlertState.removeListener(alertListener)
         client?.close()
         scope.cancel()
         running = false
@@ -212,14 +217,13 @@ class MaxWatchService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+        // The pinned line is the same truth as the screen: whatever level is standing, plus
+        // the connection state underneath it.
         val alert = AlertState.state
-        val title = if (alert.active) {
-            getString(R.string.duty_alert_active)
-        } else {
-            getString(R.string.duty_title)
-        }
+        val title = if (alert.active) alert.level.title else getString(R.string.duty_title)
         val body = if (alert.active) {
-            "${alert.chat}: ${alert.text}".take(200)
+            val silenced = if (alert.silenced) " · звук выключен" else ""
+            "${alert.chat}: ${alert.text}".take(160) + silenced + "\n$text"
         } else {
             text
         }

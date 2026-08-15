@@ -68,6 +68,9 @@ class AlarmActivity : ComponentActivity() {
             )
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Full brightness: at night the screen is often the first thing that registers,
+        // and a dimmed one can be missed entirely.
+        window.attributes = window.attributes.apply { screenBrightness = 1.0f }
     }
 }
 
@@ -86,7 +89,7 @@ private fun AlarmScreen(chat: String, message: String, ringing: Boolean, onStop:
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "ТРЕВОГА",
+            text = AlertState.state.level.takeIf { it != AlertLevel.NONE }?.title ?: "ТРЕВОГА",
             color = Color.White,
             fontSize = 44.sp,
             textAlign = TextAlign.Center,

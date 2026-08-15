@@ -110,7 +110,21 @@ def emergency_attention() -> list[float]:
     return mix(4.0, (853.0, 960.0))
 
 
+def missile_alert() -> list[float]:
+    """Ракетная опасность: the wailing civil-defence siren.
+
+    A slow rise and fall, ~2.5 s each way. This is the "attack warning" wavering tone
+    used by civil-defence sirens ("Внимание всем!"), as opposed to the steady tone that
+    means attention only -- the wail is the one people are taught means take cover.
+    """
+    out: list[float] = []
+    for _ in range(2):
+        out += sweep(2.5, 400, 1000) + sweep(2.5, 1000, 400)
+    return out
+
+
 TONES = {
+    "alarm_missile": missile_alert,
     "alarm_two_tone": two_tone,
     "alarm_siren": siren,
     "alarm_pulse": pulse,

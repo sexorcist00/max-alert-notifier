@@ -49,7 +49,8 @@ enum class AlarmPattern(
     val cycleMs: Long get() = timings.sum()
 
     companion object {
-        val DEFAULT = TEMPORAL_3
+        /** The default sound is a continuous wail, so the cadence does not chop it up. */
+        val DEFAULT = CONTINUOUS
 
         fun fromId(id: String?): AlarmPattern =
             entries.firstOrNull { pattern -> pattern.id == id } ?: DEFAULT

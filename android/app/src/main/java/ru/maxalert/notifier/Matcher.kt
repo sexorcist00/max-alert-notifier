@@ -1,10 +1,12 @@
 package ru.maxalert.notifier
 
+import java.util.ArrayDeque
+
 /**
- * Does this notification deserve an alarm?
+ * Which level, if any, does this message declare?
  *
- * Deliberately free of Android imports: this is the part that decides, and the part
- * that unit tests can run on the JVM without a device.
+ * Deliberately free of Android imports: this is the part that decides, and the part unit
+ * tests can run on the JVM without a device.
  */
 data class IncomingNotification(
     val packageName: String,
@@ -14,9 +16,9 @@ data class IncomingNotification(
 
 sealed interface Verdict {
     /** [keyword] is null when the settings say "any message in this chat". */
-    data class Match(val keyword: String?) : Verdict
+    data class Match(val level: AlertLevel, val keyword: String?) : Verdict
 
-    /** The all-clear: this message lifts a standing alert. */
+    /** The all-clear: this message lifts whatever is standing. */
     data class Deactivate(val keyword: String) : Verdict
 
     data class Skip(val reason: String) : Verdict
@@ -33,17 +35,36 @@ object Matcher {
             return Verdict.Skip("другой чат")
         }
 
-        if (notification.text.isBlank()) return Verdict.Skip("пустой текст")
+        val text = notification.text
+        if (text.isBlank()) return Verdict.Skip("пустой текст")
 
-        // The all-clear wins over the alarm word: "тревога отменена" must not ring.
+        // The all-clear wins over every level: "тревога отменена" must not raise anything.
         settings.deactivationKeywords
-            .firstOrNull { keyword -> notification.text.contains(keyword, ignoreCase = true) }
+            .firstOrNull { keyword -> text.contains(keyword, ignoreCase = true) }
             ?.let { keyword -> return Verdict.Deactivate(keyword) }
 
-        if (settings.keywords.isEmpty()) return Verdict.Match(null)
+        // Worst level first: a message naming both colours means the worse one.
+        settings.keywords
+            .firstOrNull { keyword -> text.contains(keyword, ignoreCase = true) }
+            ?.let { keyword -> return Verdict.Match(AlertLevel.RED, keyword) }
 
-        val hit = settings.keywords.firstOrNull { notification.text.contains(it, ignoreCase = true) }
-        return if (hit == null) Verdict.Skip("нет ключевого слова") else Verdict.Match(hit)
+        settings.yellowHighKeywords
+            .firstOrNull { keyword -> text.contains(keyword, ignoreCase = true) }
+            ?.let { keyword -> return Verdict.Match(AlertLevel.YELLOW_HIGH, keyword) }
+
+        settings.yellowKeywords
+            .firstOrNull { keyword -> text.contains(keyword, ignoreCase = true) }
+            ?.let { keyword -> return Verdict.Match(AlertLevel.YELLOW, keyword) }
+
+        // No words configured at all: every message in the watched chat is a red alert.
+        if (settings.keywords.isEmpty() &&
+            settings.yellowHighKeywords.isEmpty() &&
+            settings.yellowKeywords.isEmpty()
+        ) {
+            return Verdict.Match(AlertLevel.RED, null)
+        }
+
+        return Verdict.Skip("нет ключевого слова")
     }
 
     fun parseKeywords(raw: String): List<String> =
@@ -51,8 +72,8 @@ object Matcher {
 }
 
 /**
- * Stops one incident from ringing twice: the same notification is never acted on again,
- * and a successful trigger silences the next [cooldownSeconds].
+ * Stops one incident from ringing twice: the same message is never acted on again, and a
+ * successful trigger silences the next [cooldownSeconds].
  */
 class TriggerGate(private val clock: () -> Long = System::currentTimeMillis) {
 

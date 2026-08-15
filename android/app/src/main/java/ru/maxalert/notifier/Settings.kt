@@ -7,7 +7,10 @@ data class AlertSettings(
     val enabled: Boolean = true,
     val sourcePackage: String = MAX_PACKAGE,
     val chatFilter: String = "",
+    /** Words that declare a red alert -- the only level that makes noise. */
     val keywords: List<String> = emptyList(),
+    val yellowHighKeywords: List<String> = emptyList(),
+    val yellowKeywords: List<String> = emptyList(),
     /** Words that lift a standing alert, said in the same chat. */
     val deactivationKeywords: List<String> = emptyList(),
     val vibrate: Boolean = true,
@@ -28,8 +31,12 @@ data class AlertSettings(
     companion object {
         const val MAX_PACKAGE = "ru.oneme.app"
 
-        /** The alarm ships its own sound; the phone's alarm ringtone is never used. */
-        const val DEFAULT_SOUND = "raw:alarm_t3"
+        /**
+         * The alarm ships its own sound; the phone's alarm ringtone is never used.
+         * The wailing civil-defence siren is the default: it is the sound people already
+         * read as "take cover", and it needs no explanation at three in the morning.
+         */
+        const val DEFAULT_SOUND = "raw:alarm_missile"
     }
 }
 
@@ -44,6 +51,8 @@ class SettingsStore(context: Context) {
             sourcePackage = prefs.getString(KEY_PACKAGE, defaults.sourcePackage) ?: defaults.sourcePackage,
             chatFilter = prefs.getString(KEY_CHAT, defaults.chatFilter) ?: defaults.chatFilter,
             keywords = Matcher.parseKeywords(prefs.getString(KEY_KEYWORDS, "") ?: ""),
+            yellowHighKeywords = Matcher.parseKeywords(prefs.getString(KEY_YELLOW_HIGH, "") ?: ""),
+            yellowKeywords = Matcher.parseKeywords(prefs.getString(KEY_YELLOW, "") ?: ""),
             deactivationKeywords = Matcher.parseKeywords(prefs.getString(KEY_DEACTIVATION, "") ?: ""),
             vibrate = prefs.getBoolean(KEY_VIBRATE, defaults.vibrate),
             vibrationStrength = prefs.getInt(KEY_VIBRATION_STRENGTH, defaults.vibrationStrength),
@@ -63,6 +72,8 @@ class SettingsStore(context: Context) {
             .putString(KEY_PACKAGE, settings.sourcePackage)
             .putString(KEY_CHAT, settings.chatFilter)
             .putString(KEY_KEYWORDS, settings.keywords.joinToString(", "))
+            .putString(KEY_YELLOW_HIGH, settings.yellowHighKeywords.joinToString(", "))
+            .putString(KEY_YELLOW, settings.yellowKeywords.joinToString(", "))
             .putString(KEY_DEACTIVATION, settings.deactivationKeywords.joinToString(", "))
             .putBoolean(KEY_VIBRATE, settings.vibrate)
             .putInt(KEY_VIBRATION_STRENGTH, settings.vibrationStrength)
@@ -82,6 +93,8 @@ class SettingsStore(context: Context) {
         const val KEY_PACKAGE = "source_package"
         const val KEY_CHAT = "chat_filter"
         const val KEY_KEYWORDS = "keywords"
+        const val KEY_YELLOW_HIGH = "yellow_high_keywords"
+        const val KEY_YELLOW = "yellow_keywords"
         const val KEY_DEACTIVATION = "deactivation_keywords"
         const val KEY_VIBRATE = "vibrate"
         const val KEY_VIBRATION_STRENGTH = "vibration_strength"

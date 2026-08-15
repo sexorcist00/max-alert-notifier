@@ -29,7 +29,14 @@ class MaxClient(
 
     enum class State { OFFLINE, CONNECTING, NEEDS_LOGIN, ONLINE }
 
-    class MaxError(message: String) : Exception(message)
+    /**
+     * [fromServer] separates "MAX said no" from "the network broke".
+     *
+     * The difference decides whether the login token survives: a dropped socket, a VPN
+     * switch or a dead cell must never cost the user another SMS, while an actual rejection
+     * has to be believed.
+     */
+    class MaxError(message: String, val fromServer: Boolean = false) : Exception(message)
 
     private val transport = MaxTransport()
 
@@ -163,9 +170,16 @@ class MaxClient(
                 ),
             )
         } catch (error: MaxError) {
-            Log.w(TAG, "login rejected: ${error.message}")
-            session.loginToken = null
-            onState(State.NEEDS_LOGIN, error.message)
+            if (error.fromServer) {
+                // MAX itself refused the token: it is spent, and only a new SMS will help.
+                Log.w(TAG, "login rejected by server: ${error.message}")
+                session.loginToken = null
+                onState(State.NEEDS_LOGIN, error.message)
+            } else {
+                // Network trouble -- keep the session and try again later.
+                Log.w(TAG, "login failed on transport: ${error.message}")
+                onState(State.OFFLINE, error.message)
+            }
             return false
         }
 
@@ -261,7 +275,7 @@ class MaxClient(
                     ?: (frame.payload["message"] as? String)
                     ?: (frame.payload["error"] as? String)
                     ?: "ошибка MAX"
-                waiting.completeExceptionally(MaxError(message))
+                waiting.completeExceptionally(MaxError(message, fromServer = true))
             } else {
                 waiting.complete(frame.payload)
             }

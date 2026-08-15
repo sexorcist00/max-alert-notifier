@@ -6,8 +6,8 @@ import android.util.Log
 /**
  * One decision path for both sources -- MAX's notifications and our own connection.
  *
- * Whoever saw the message first calls this; the gate makes sure the second one does not
- * ring the same alert twice.
+ * Whoever saw the message first calls this; the gate makes sure the second one does not act
+ * on the same message twice.
  */
 object AlertPipeline {
 
@@ -29,12 +29,12 @@ object AlertPipeline {
             is Verdict.Skip -> log(context, chat, text, time, false, "${verdict.reason} · $source")
 
             is Verdict.Deactivate -> {
-                val wasActive = AlertState.state.active
+                val standing = AlertState.state.level
                 AlarmController.stop(context)
                 AlertState.clear(context)
                 log(
                     context, chat, text, time, false,
-                    if (wasActive) "отбой по слову «${verdict.keyword}» · $source"
+                    if (standing.active()) "отбой «${verdict.keyword}» снял ${standing.title} · $source"
                     else "слово отбоя «${verdict.keyword}», тревоги не было · $source",
                 )
             }
@@ -45,18 +45,22 @@ object AlertPipeline {
                     return
                 }
                 val reason = verdict.keyword?.let { "слово «$it»" } ?: "любое сообщение в чате"
-                val isNew = AlertState.raise(context, chat, text, time)
-                log(context, chat, text, time, true, "$reason · $source")
-                Log.i("MaxAlert", "code red: $chat / $reason")
-                if (isNew && ring) AlarmController.trigger(context, settings, chat, text)
+                val changed = AlertState.raise(context, verdict.level, chat, text, time)
+                log(context, chat, text, time, verdict.level.rings, "${verdict.level.title}: $reason · $source")
+                Log.i("MaxAlert", "${verdict.level.id}: $chat / $reason")
+
+                // Only red makes noise; the yellows are a state to be seen, not heard.
+                if (verdict.level.rings && changed && ring) {
+                    AlarmController.trigger(context, settings, chat, text)
+                }
             }
         }
     }
 
     /**
      * Replays what was said while the phone was offline, oldest first, and rings only if the
-     * run ends with the alert still standing -- an alarm that was called off in the meantime
-     * must not wake anyone.
+     * run ends with a red alert still standing -- an alarm called off in the meantime must
+     * not wake anyone.
      */
     fun replay(
         context: Context,
@@ -68,12 +72,13 @@ object AlertPipeline {
             handle(context, settings, chat, text, time, "replay:$chat:$time", source, ring = false)
         }
 
-        // Ring once, at the end, and only if the run leaves the alert standing.
         val state = AlertState.state
-        if (state.active && !state.silenced) {
+        if (state.level.rings && !state.silenced) {
             AlarmController.trigger(context, settings, state.chat, state.text)
         }
     }
+
+    private fun AlertLevel.active(): Boolean = this != AlertLevel.NONE
 
     private fun log(
         context: Context,

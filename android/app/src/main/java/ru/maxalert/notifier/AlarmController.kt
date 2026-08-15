@@ -134,7 +134,7 @@ object AlarmController {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_alert)
-            .setContentTitle(context.getString(R.string.alarm_title, chatTitle))
+            .setContentTitle("${AlertState.state.level.title} · $chatTitle")
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setPriority(NotificationCompat.PRIORITY_MAX)

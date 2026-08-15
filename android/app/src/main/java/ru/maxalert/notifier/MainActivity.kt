@@ -50,6 +50,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -115,6 +117,22 @@ private fun HomeScreen() {
         store.save(settings)
     }
 
+    // Nothing on this screen is allowed to age silently: everything the connection touches
+    // is re-read on a timer, and the duty notification can switch dury off behind our back.
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(5_000)
+            AppRefresh.bump()
+        }
+    }
+    LaunchedEffect(AppRefresh.tick) {
+        settings = store.load()
+    }
+    // An update is offered on opening the app, never installed behind the user's back.
+    LaunchedEffect(Unit) {
+        UpdateChecker.check(context, quiet = true)
+    }
+
     DisposableEffect(Unit) {
         onDispose { AlarmPreview.stop(context) }
     }
@@ -122,7 +140,7 @@ private fun HomeScreen() {
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(title = { Text("Код красный") })
+                TopAppBar(title = { Text("Оповещение о тревоге") })
                 StatusStrip(settings) { tab = 1 }
                 TabRow(selectedTabIndex = tab) {
                     TABS.forEachIndexed { index, title ->
@@ -145,6 +163,7 @@ private fun HomeScreen() {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             AlertStateCard()
+            UpdateCard()
 
             when (tab) {
                 0 -> AlarmTab(settings, ::update)
@@ -160,7 +179,12 @@ private fun HomeScreen() {
 @Composable
 private fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val session = remember { MaxSession(context) }
+
+    // Subscribing to the tick is what keeps every line below from going stale.
+    val tick = AppRefresh.tick
+    val now = remember(tick) { System.currentTimeMillis() }
 
     val status = SessionStatus.evaluate(
         watching = settings.enabled,
@@ -170,7 +194,7 @@ private fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
         loggedIn = session.loggedIn,
         online = MaxWatchService.online,
         lastOnlineAt = session.lastOnlineAt,
-        now = System.currentTimeMillis(),
+        now = now,
     )
 
     val color = when (status.level) {
@@ -194,9 +218,21 @@ private fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
                 .background(color)
         )
         Spacer(Modifier.width(12.dp))
-        Column {
+        Column(Modifier.weight(1f)) {
             Text(status.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
             Text(status.detail, style = MaterialTheme.typography.bodySmall)
+            ConnectionProbe.ageText(now)?.let { age ->
+                Text(age, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        TextButton(
+            enabled = !ConnectionProbe.busy,
+            onClick = {
+                AppRefresh.bump()
+                if (session.loggedIn) scope.launch { ConnectionProbe.run(context) }
+            },
+        ) {
+            Text(if (ConnectionProbe.busy) "…" else "↻")
         }
     }
 }
@@ -238,6 +274,45 @@ private fun AlertStateCard() {
                 ),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Снять вручную") }
+        }
+    }
+}
+
+@Composable
+private fun UpdateCard() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val release = UpdateChecker.available ?: return
+    var downloading by remember { mutableStateOf(false) }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Есть версия ${release.version}", fontWeight = FontWeight.Bold)
+            Text(
+                "Установлена ${BuildConfig.VERSION_NAME}. Обновление ставится системным " +
+                    "установщиком — потребуется разрешение на установку из этого приложения.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    enabled = !downloading,
+                    onClick = {
+                        downloading = true
+                        scope.launch {
+                            val apk = UpdateChecker.download(context, release)
+                            downloading = false
+                            if (apk != null) UpdateChecker.install(context, apk)
+                        }
+                    },
+                ) { Text(if (downloading) "Скачиваю…" else "Обновить") }
+                OutlinedButton(onClick = { UpdateChecker.dismiss() }) { Text("Позже") }
+            }
+            UpdateChecker.message?.let { text ->
+                Text(text, style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
@@ -397,6 +472,8 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
 private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertSettings) -> Unit) {
     val context = LocalContext.current
     var keywordsText by remember { mutableStateOf(settings.keywords.joinToString(", ")) }
+    var yellowHighText by remember { mutableStateOf(settings.yellowHighKeywords.joinToString(", ")) }
+    var yellowText by remember { mutableStateOf(settings.yellowKeywords.joinToString(", ")) }
     var deactivationText by remember { mutableStateOf(settings.deactivationKeywords.joinToString(", ")) }
 
     SectionCard("Дежурство") {
@@ -429,8 +506,27 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
                 keywordsText = value
                 update { it.copy(keywords = Matcher.parseKeywords(value)) }
             },
-            label = { Text("Слова тревоги") },
-            supportingText = { Text("Через запятую. Пусто — тревога на любое сообщение в этом чате.") },
+            label = { Text("Слова КОДА КРАСНОГО") },
+            supportingText = { Text("Единственный уровень, который звенит. Пусто и жёлтые тоже пусты — красный на любое сообщение.") },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = yellowHighText,
+            onValueChange = { value ->
+                yellowHighText = value
+                update { it.copy(yellowHighKeywords = Matcher.parseKeywords(value)) }
+            },
+            label = { Text("Слова кода жёлтого повышенного") },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = yellowText,
+            onValueChange = { value ->
+                yellowText = value
+                update { it.copy(yellowKeywords = Matcher.parseKeywords(value)) }
+            },
+            label = { Text("Слова кода жёлтого") },
+            supportingText = { Text("Жёлтые уровни не звучат: меняют состояние и строку в шторке.") },
             modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
@@ -497,13 +593,16 @@ private fun DirectConnectionCard(
     val scope = rememberCoroutineScope()
     val session = remember { MaxSession(context) }
 
-    var loggedIn by remember { mutableStateOf(session.loggedIn) }
+    // Read live, never cached: the session can be dropped by the service or by MAX itself,
+    // and a button that still says "вход выполнен" would be lying.
+    val tick = AppRefresh.tick
+    val loggedIn = remember(tick) { session.loggedIn }
+    val codeRequested = remember(tick) { session.authToken != null }
+
     var phone by remember { mutableStateOf(session.phone ?: "+7") }
     var code by remember { mutableStateOf("") }
-    var codeRequested by remember { mutableStateOf(session.authToken != null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var checked by remember { mutableStateOf<String?>(null) }
 
     SectionCard("Источник 2 · своё подключение к MAX") {
         Text(
@@ -519,29 +618,24 @@ private fun DirectConnectionCard(
         if (loggedIn) {
             Text("Вход выполнен: ${session.phone ?: "аккаунт MAX"}")
             Button(
-                enabled = !busy,
-                onClick = {
-                    busy = true
-                    error = null
-                    checked = null
-                    scope.launch {
-                        runCatching { MaxLogin.checkSession(context) }
-                            .onSuccess { chats -> checked = "Сессия жива, чатов видно: $chats" }
-                            .onFailure { error = "Сессия недоступна: ${it.message}" }
-                        busy = false
-                    }
-                },
+                enabled = !ConnectionProbe.busy,
+                onClick = { scope.launch { ConnectionProbe.run(context) } },
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text(if (busy) "Проверяю…" else "Проверить сессию сейчас") }
-            checked?.let { text ->
-                Text(text, style = MaterialTheme.typography.bodySmall)
+            ) { Text(if (ConnectionProbe.busy) "Проверяю…" else "Проверить сессию сейчас") }
+            ConnectionProbe.message?.let { text ->
+                Text(
+                    text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (ConnectionProbe.ok == false) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurface,
+                )
             }
             OutlinedButton(
                 onClick = {
                     session.clear()
-                    loggedIn = false
-                    codeRequested = false
+                    ConnectionProbe.reset()
                     MaxWatchService.stop(context)
+                    AppRefresh.bump()
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Выйти из аккаунта") }
@@ -561,8 +655,9 @@ private fun DirectConnectionCard(
                     error = null
                     scope.launch {
                         runCatching { MaxLogin.requestCode(context, phone.trim()) }
-                            .onSuccess { codeRequested = true }
                             .onFailure { error = it.message ?: "не удалось запросить код" }
+                        // The stored token is the truth about "code requested", not a flag here.
+                        AppRefresh.bump()
                         busy = false
                     }
                 },
@@ -586,10 +681,10 @@ private fun DirectConnectionCard(
                         scope.launch {
                             runCatching { MaxLogin.submitCode(context, code.trim()) }
                                 .onSuccess {
-                                    loggedIn = true
                                     if (settings.useDirectConnection) MaxWatchService.start(context)
                                 }
                                 .onFailure { error = it.message ?: "код не принят" }
+                            AppRefresh.bump()
                             busy = false
                         }
                     },

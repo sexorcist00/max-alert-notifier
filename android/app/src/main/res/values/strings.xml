@@ -1,13 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Код красный</string>
+    <string name="app_name">Оповещение о тревоге</string>
     <string name="channel_alarm">Тревога</string>
     <string name="channel_alarm_description">Громкий сигнал по сообщению из отслеживаемого чата</string>
     <string name="channel_watch">Дежурный режим</string>
-    <string name="alarm_title">КОД КРАСНЫЙ · %1$s</string>
+    <string name="alarm_title">%1$s</string>
     <string name="stop">СТОП</string>
     <string name="duty_title">Дежурю</string>
-    <string name="duty_alert_active">КОД КРАСНЫЙ активен</string>
     <string name="duty_stand_down">Выключить</string>
     <string name="watch_idle">Запускаюсь…</string>
     <string name="watch_connecting">Подключаюсь к MAX…</string>
