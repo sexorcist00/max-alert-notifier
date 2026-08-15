@@ -73,6 +73,7 @@ class MaxWatchService : Service() {
         client?.close()
         scope.cancel()
         running = false
+        online = false
         status = "выключено"
     }
 
@@ -153,6 +154,8 @@ class MaxWatchService : Service() {
     }
 
     private fun onClientState(state: MaxClient.State, detail: String?) {
+        online = state == MaxClient.State.ONLINE
+        if (online) session.lastOnlineAt = System.currentTimeMillis()
         when (state) {
             MaxClient.State.ONLINE -> updateStatus(getString(R.string.watch_online))
             MaxClient.State.CONNECTING -> updateStatus(getString(R.string.watch_connecting))
@@ -248,6 +251,8 @@ class MaxWatchService : Service() {
         var status by mutableStateOf("выключено")
             private set
         var running by mutableStateOf(false)
+            private set
+        var online by mutableStateOf(false)
             private set
 
         fun start(context: Context) {

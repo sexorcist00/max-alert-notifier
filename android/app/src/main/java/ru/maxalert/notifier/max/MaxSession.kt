@@ -30,6 +30,11 @@ class MaxSession(context: Context) {
                 prefs.edit().putInt(KEY_CLIENT_SESSION, generated).apply()
             }
 
+    /** Last moment the server actually answered us -- the honest input for the status light. */
+    var lastOnlineAt: Long
+        get() = prefs.getLong(KEY_LAST_ONLINE, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_ONLINE, value).apply()
+
     /** Time of the last message we acted on, so a reconnect can replay only what we missed. */
     var lastSeenTime: Long
         get() = prefs.getLong(KEY_LAST_SEEN, 0L)
@@ -65,6 +70,7 @@ class MaxSession(context: Context) {
         const val KEY_INSTANCE_ID = "instance_id"
         const val KEY_CLIENT_SESSION = "client_session_id"
         const val KEY_LAST_SEEN = "last_seen_time"
+        const val KEY_LAST_ONLINE = "last_online_at"
         const val KEY_PHONE = "phone"
         const val KEY_AUTH_TOKEN = "auth_token"
         const val KEY_LOGIN_TOKEN = "login_token"
