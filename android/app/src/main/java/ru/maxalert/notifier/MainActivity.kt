@@ -140,7 +140,21 @@ private fun HomeScreen() {
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(title = { Text("Оповещение о тревоге") })
+                TopAppBar(
+                    title = { Text("Оповещение о тревоге") },
+                    actions = {
+                        // The master switch belongs where it is always reachable: whether the
+                        // phone is on watch is the one thing worth knowing from any tab.
+                        Switch(
+                            checked = settings.enabled,
+                            onCheckedChange = { value ->
+                                update { it.copy(enabled = value) }
+                                if (value) MaxWatchService.start(context) else MaxWatchService.stop(context)
+                            },
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    },
+                )
                 StatusStrip(settings) { tab = 1 }
                 TabRow(selectedTabIndex = tab) {
                     TABS.forEachIndexed { index, title ->
@@ -246,12 +260,12 @@ private fun AlertStateCard() {
     val format = remember { SimpleDateFormat("d MMMM, HH:mm", Locale.getDefault()) }
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.error),
+        colors = CardDefaults.cardColors(containerColor = Color(state.level.colorArgb)),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                "КОД КРАСНЫЙ",
+                state.level.title,
                 color = Color.White,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
@@ -270,7 +284,7 @@ private fun AlertStateCard() {
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.White,
-                    contentColor = MaterialTheme.colorScheme.error,
+                    contentColor = Color(state.level.colorArgb),
                 ),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Снять вручную") }
@@ -332,19 +346,35 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
         }
     }
 
+    var patternsOpen by remember { mutableStateOf(false) }
+    var soundsOpen by remember { mutableStateOf(false) }
+
+    // Long radio lists pushed everything else off the screen; the choice already made is
+    // shown as one line, and the list opens only when there is a choice to change.
     SectionCard("Ритм") {
-        Text(
-            "Один ритм задаёт звук, вибрацию и фонарик. Шаблоны взяты из стандартов: кто слышал " +
-                "пожарный извещатель, узнаёт сигнал без объяснений.",
-            style = MaterialTheme.typography.bodySmall,
+        CurrentChoiceRow(
+            value = settings.pattern.label,
+            note = settings.pattern.standard,
+            open = patternsOpen,
+            onToggle = { patternsOpen = !patternsOpen },
         )
-        AlarmPattern.entries.forEach { pattern ->
-            ChoiceRow(
-                selected = settings.pattern == pattern,
-                onSelect = { update { it.copy(patternId = pattern.id) } },
-                title = pattern.label,
-                subtitle = pattern.standard,
+        if (patternsOpen) {
+            Text(
+                "Один ритм задаёт звук, вибрацию и фонарик. Шаблоны взяты из стандартов: кто " +
+                    "слышал пожарный извещатель, узнаёт сигнал без объяснений.",
+                style = MaterialTheme.typography.bodySmall,
             )
+            AlarmPattern.entries.forEach { pattern ->
+                ChoiceRow(
+                    selected = settings.pattern == pattern,
+                    onSelect = {
+                        update { it.copy(patternId = pattern.id) }
+                        AlarmPreview.vibrate(context, settings.copy(patternId = pattern.id))
+                    },
+                    title = pattern.label,
+                    subtitle = pattern.standard,
+                )
+            }
         }
         OutlinedButton(
             onClick = { AlarmPreview.vibrate(context, settings) },
@@ -353,7 +383,19 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
     }
 
     SectionCard("Звук") {
-        AlarmSounds.CATALOGUE.forEach { choice ->
+        CurrentChoiceRow(
+            value = AlarmSounds.CATALOGUE.firstOrNull { it.uri == settings.soundUri }?.label
+                ?: "Свой файл",
+            note = AlarmSounds.CATALOGUE.firstOrNull { it.uri == settings.soundUri }?.note,
+            open = soundsOpen,
+            onToggle = { soundsOpen = !soundsOpen },
+            trailing = {
+                TextButton(onClick = { AlarmPreview.toggleSound(context, settings.soundUri) }) {
+                    Text(if (AlarmPreview.playing == settings.soundUri) "стоп" else "▶")
+                }
+            },
+        )
+        if (soundsOpen) AlarmSounds.CATALOGUE.forEach { choice ->
             ChoiceRow(
                 selected = settings.soundUri == choice.uri,
                 onSelect = { update { it.copy(soundUri = choice.uri) } },
@@ -366,18 +408,7 @@ private fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
                 },
             )
         }
-        val custom = settings.soundUri != null && !AlarmSounds.contains(settings.soundUri)
-        ChoiceRow(
-            selected = custom,
-            onSelect = {},
-            title = if (custom) "Свой файл (выбран)" else "Свой файл",
-            trailing = {
-                TextButton(onClick = { AlarmPreview.toggleSound(context, settings.soundUri) }) {
-                    Text(if (AlarmPreview.playing == settings.soundUri && custom) "стоп" else "▶")
-                }
-            },
-        )
-        OutlinedButton(
+        if (soundsOpen) OutlinedButton(
             onClick = {
                 soundPicker.launch(
                     Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
@@ -468,17 +499,7 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
     var yellowText by remember { mutableStateOf(settings.yellowKeywords.joinToString(", ")) }
     var deactivationText by remember { mutableStateOf(settings.deactivationKeywords.joinToString(", ")) }
 
-    SectionCard("Дежурство") {
-        SwitchRow("Слежу за чатом", settings.enabled) { value ->
-            update { it.copy(enabled = value) }
-            if (value) MaxWatchService.start(context) else MaxWatchService.stop(context)
-        }
-        Text(
-            "Пока дежурство включено, в шторке висит закреплённое уведомление — оттуда же " +
-                "выключается одним касанием.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
+    SetupCard(settings)
 
     AccessCard(context)
     DirectConnectionCard(settings, update)
@@ -567,6 +588,61 @@ private fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> AlertS
             onClick = { context.openDndAccess() },
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Доступ к «Не беспокоить»") }
+    }
+}
+
+/**
+ * What is still missing before this phone can be trusted to wake someone.
+ *
+ * Written as things left to do rather than a wall of settings: the point of opening this
+ * screen the first time is to find out what is not done yet.
+ */
+@Composable
+private fun SetupCard(settings: AlertSettings) {
+    val context = LocalContext.current
+    val tick = AppRefresh.tick
+
+    val notificationAccess = remember(tick) {
+        NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+    }
+    val batteryFree = remember(tick) {
+        val power = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        power?.isIgnoringBatteryOptimizations(context.packageName) == true
+    }
+    val noWords = settings.keywords.isEmpty() &&
+        settings.yellowHighKeywords.isEmpty() &&
+        settings.yellowKeywords.isEmpty()
+
+    val todo = buildList {
+        if (!settings.enabled) add("Включите дежурство — переключатель в шапке")
+        if (!notificationAccess) add("Выдайте доступ к уведомлениям (ниже)")
+        if (settings.chatFilter.isBlank()) add("Укажите чат: сейчас тревогу поднимет любой")
+        if (noWords) add("Задайте слова: сейчас звенит любое сообщение из чата")
+        if (settings.deactivationKeywords.isEmpty()) add("Задайте слова отбоя, иначе снимать только вручную")
+        if (!batteryFree) add("Снимите ограничения батареи, иначе EMUI закроет службу")
+    }
+
+    SectionCard(if (todo.isEmpty()) "Настроено" else "Осталось настроить") {
+        if (todo.isEmpty()) {
+            Text(
+                "Всё на месте: чат выбран, слова заданы, доступы выданы. Проверьте тревогу на " +
+                    "вкладке «Тревога» и можно дежурить.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        } else {
+            todo.forEach { item ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(item, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
     }
 }
 
@@ -761,6 +837,28 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             content()
         }
+    }
+}
+
+/** The setting as it stands now, with one tap to open the list of alternatives. */
+@Composable
+private fun CurrentChoiceRow(
+    value: String,
+    note: String?,
+    open: Boolean,
+    onToggle: () -> Unit,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(value, fontWeight = FontWeight.Bold)
+            note?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+        }
+        trailing?.invoke()
+        TextButton(onClick = onToggle) { Text(if (open) "Свернуть" else "Изменить") }
     }
 }
 

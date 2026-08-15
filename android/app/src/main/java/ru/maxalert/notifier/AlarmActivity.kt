@@ -83,7 +83,9 @@ private fun AlarmScreen(chat: String, message: String, ringing: Boolean, onStop:
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.error)
+            // The screen carries the level's own colour, so the answer is readable across a
+            // dark room before a single word is.
+            .background(Color(AlertState.state.level.colorArgb))
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -116,7 +118,7 @@ private fun AlarmScreen(chat: String, message: String, ringing: Boolean, onStop:
                 .height(96.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color.White,
-                contentColor = MaterialTheme.colorScheme.error,
+                contentColor = Color(AlertState.state.level.colorArgb),
             ),
         ) {
             Text(text = "СТОП", fontSize = 32.sp)
