@@ -25,6 +25,8 @@ data class AlertSettings(
     val soundUri: String? = DEFAULT_SOUND,
     /** Second, independent source: the app's own connection to MAX. */
     val useDirectConnection: Boolean = true,
+    /** Pin our own socket to the physical network when a VPN is up. See [NetworkRoute]. */
+    val bypassVpn: Boolean = true,
 ) {
     val pattern: AlarmPattern get() = AlarmPattern.fromId(patternId)
 
@@ -63,6 +65,7 @@ class SettingsStore(context: Context) {
             cooldownSeconds = prefs.getInt(KEY_COOLDOWN, defaults.cooldownSeconds),
             soundUri = prefs.getString(KEY_SOUND, defaults.soundUri) ?: defaults.soundUri,
             useDirectConnection = prefs.getBoolean(KEY_DIRECT, defaults.useDirectConnection),
+            bypassVpn = prefs.getBoolean(KEY_BYPASS_VPN, defaults.bypassVpn),
         )
     }
 
@@ -84,6 +87,7 @@ class SettingsStore(context: Context) {
             .putInt(KEY_COOLDOWN, settings.cooldownSeconds)
             .putString(KEY_SOUND, settings.soundUri)
             .putBoolean(KEY_DIRECT, settings.useDirectConnection)
+            .putBoolean(KEY_BYPASS_VPN, settings.bypassVpn)
             .apply()
     }
 
@@ -105,5 +109,6 @@ class SettingsStore(context: Context) {
         const val KEY_COOLDOWN = "cooldown_seconds"
         const val KEY_SOUND = "sound_uri"
         const val KEY_DIRECT = "direct_connection"
+        const val KEY_BYPASS_VPN = "bypass_vpn"
     }
 }

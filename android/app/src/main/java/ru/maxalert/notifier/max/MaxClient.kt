@@ -1,6 +1,8 @@
 package ru.maxalert.notifier.max
 
 import android.util.Log
+import ru.maxalert.notifier.NetworkRoute
+import ru.maxalert.notifier.SettingsStore
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -38,7 +40,17 @@ class MaxClient(
      */
     class MaxError(message: String, val fromServer: Boolean = false) : Exception(message)
 
-    private val transport = MaxTransport()
+    // The route is decided per connection, not once: the user can switch the VPN on between
+    // two reconnects, and the setting is allowed to change while the service runs.
+    private val transport = MaxTransport { host, port, timeout ->
+        NetworkRoute.connect(
+            context = session.appContext,
+            bypassVpn = SettingsStore(session.appContext).load().bypassVpn,
+            host = host,
+            port = port,
+            timeoutMs = timeout,
+        )
+    }
 
     private val pending = ConcurrentHashMap<Int, CompletableDeferred<Map<String, Any?>>>()
     private val sequence = AtomicInteger(0)

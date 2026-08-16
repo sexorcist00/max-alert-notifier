@@ -16,7 +16,15 @@ import javax.net.ssl.SSLSocketFactory
  * the live server: web identity + websocket reaches `captcha.validation-failed` on the SMS
  * request, android identity over the websocket is refused outright.
  */
-class MaxTransport {
+class MaxTransport(
+    /**
+     * How the plain socket is opened, before TLS is layered on top. Injected so the caller can
+     * pin it to a chosen network -- around a VPN -- without this class knowing about Android.
+     */
+    private val open: (host: String, port: Int, timeoutMs: Int) -> Socket = { host, port, timeout ->
+        Socket().apply { connect(InetSocketAddress(host, port), timeout) }
+    },
+) {
 
     private var socket: SSLSocket? = null
     private var input: DataInputStream? = null
@@ -27,8 +35,7 @@ class MaxTransport {
     @Throws(IOException::class)
     fun connect(host: String = HOST, port: Int = PORT, timeoutMs: Int = 20_000) {
         close()
-        val plain = Socket()
-        plain.connect(InetSocketAddress(host, port), timeoutMs)
+        val plain = open(host, port, timeoutMs)
         plain.tcpNoDelay = true
 
         val secure = (SSLSocketFactory.getDefault() as SSLSocketFactory)

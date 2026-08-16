@@ -11,7 +11,10 @@ import java.util.UUID
  */
 class MaxSession(context: Context) {
 
-    private val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    /** Kept so the client can ask the system which network to leave through. */
+    val appContext: Context = context.applicationContext
+
+    private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     val deviceId: String
         get() = prefs.getString(KEY_DEVICE_ID, null) ?: UUID.randomUUID().toString().also { generated ->

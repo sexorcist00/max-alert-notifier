@@ -293,6 +293,8 @@ internal fun DirectConnectionCard(
     val loggedIn = remember(tick) { session.loggedIn }
     val codeRequested = remember(tick) { session.authToken != null }
 
+    val vpnActive = remember(tick) { NetworkRoute.vpnActive(context) }
+
     var phone by remember { mutableStateOf(session.phone ?: "+7") }
     var code by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -334,6 +336,7 @@ internal fun DirectConnectionCard(
             "Видит сообщения, даже когда МАКС не показывает уведомление. Нужен вход по SMS.",
             style = MaterialTheme.typography.bodySmall,
         )
+        VpnRow(settings, vpnActive, update)
         SwitchRow("Держать подключение", settings.useDirectConnection) { value ->
             update { it.copy(useDirectConnection = value) }
             if (value) MaxWatchService.start(context) else MaxWatchService.stop(context)
@@ -416,14 +419,68 @@ internal fun DirectConnectionCard(
                 ) { Text("Войти") }
             }
             Text(
-                "Через VPN вход обычно не проходит — MAX не выдаёт код на зарубежный адрес. " +
-                    "Войдите без VPN; уведомления МАКСа от этого не зависят.",
+                when {
+                    vpnActive && settings.bypassVpn ->
+                        "VPN включён, но обход включён тоже: код запрашивается мимо VPN. Если " +
+                            "MAX всё равно откажет — значит VPN блокирует соединения без себя, " +
+                            "выключите его на время входа."
+                    vpnActive ->
+                        "VPN включён, а обход выключен — MAX не выдаст код на зарубежный адрес. " +
+                            "Включите обход выше или выключите VPN на время входа."
+                    else ->
+                        "Через VPN вход обычно не проходит — MAX не выдаёт код на зарубежный " +
+                            "адрес. Уведомления МАКСа от этого не зависят."
+                },
                 style = MaterialTheme.typography.bodySmall,
+                fontWeight = if (vpnActive) FontWeight.Bold else FontWeight.Normal,
             )
         }
 
         error?.let { text ->
             Text(text, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
+    }
+}
+
+/**
+ * The VPN switch, with the truth about what it can and cannot do.
+ *
+ * Android lets an app pin its own socket to the physical network, so this connection can leave
+ * around a VPN while the rest of the phone keeps it. What it cannot beat is a VPN in lockdown
+ * mode ("block connections without VPN"), and a switch that stayed silent about that would look
+ * broken when the login still failed -- so the card says which route the last attempt took.
+ */
+@Composable
+private fun VpnRow(
+    settings: AlertSettings,
+    vpnActive: Boolean,
+    update: ((AlertSettings) -> AlertSettings) -> Unit,
+) {
+    val palette = LocalAlertPalette.current
+
+    SwitchRow("Обходить VPN", settings.bypassVpn) { value ->
+        update { it.copy(bypassVpn = value) }
+    }
+    Text(
+        if (settings.bypassVpn) {
+            "Только это подключение уходит мимо VPN — остальной трафик телефона остаётся в нём. " +
+                "Не поможет, если в VPN включено «блокировать соединения без VPN»: тогда " +
+                "добавьте приложение в исключения самого VPN или выключите его на время входа."
+        } else {
+            "Подключение идёт как весь трафик — через VPN, если он включён."
+        },
+        style = MaterialTheme.typography.bodySmall,
+    )
+    if (vpnActive) {
+        Text(
+            if (settings.bypassVpn) "Сейчас VPN включён, обход применяется"
+            else "Сейчас VPN включён, обход выключен",
+            style = MaterialTheme.typography.bodySmall,
+            color = if (settings.bypassVpn) palette.statusOk else palette.statusWarn,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+    NetworkRoute.lastRoute?.let { route ->
+        Text("Последнее подключение: $route", style = MaterialTheme.typography.labelSmall)
     }
 }
