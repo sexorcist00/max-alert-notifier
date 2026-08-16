@@ -180,6 +180,7 @@ internal fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
         online = MaxWatchService.online,
         lastOnlineAt = session.lastOnlineAt,
         now = now,
+        awaitingPassword = session.passwordTrackId != null,
     )
 
     val palette = LocalAlertPalette.current

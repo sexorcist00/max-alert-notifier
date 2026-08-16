@@ -62,6 +62,9 @@ class MaxClient(
 
     val chats: Map<Long, String> get() = chatTitles
 
+    /** Whether the socket is still up -- a login step may continue on it. */
+    val connected: Boolean get() = transport.connected
+
     suspend fun connect() {
         close()
         onState(State.CONNECTING, null)
@@ -133,8 +136,13 @@ class MaxClient(
         return (response["codeLength"] as? Long)?.toInt() ?: 6
     }
 
-    /** Submits the SMS code and stores the login token on success. */
-    suspend fun submitCode(code: String) {
+    /**
+     * Submits the SMS code.
+     *
+     * Returns what MAX decided: the account may be open already, or -- since MAX started
+     * asking for one -- it may want the login password as a second factor.
+     */
+    suspend fun submitCode(code: String): AuthOutcome {
         val token = session.authToken ?: throw MaxError("Сначала запросите код")
         val response = invoke(
             MaxProtocol.OP_AUTH,
@@ -144,20 +152,44 @@ class MaxClient(
                 "authTokenType" to "CHECK_CODE",
             ),
         )
+        return remember(AuthResponse.read(response))
+    }
 
-        @Suppress("UNCHECKED_CAST")
-        val attrs = response["tokenAttrs"] as? Map<String, Any?>
-        @Suppress("UNCHECKED_CAST")
-        val login = (attrs?.get("LOGIN") as? Map<String, Any?>)?.get("token") as? String
+    /**
+     * Answers the password challenge on the same connection the code was accepted on.
+     *
+     * The track id is what the server ties the two steps together with; it is stored so the
+     * step survives the app being closed between the code and the password.
+     */
+    suspend fun submitPassword(password: String): AuthOutcome {
+        val trackId = session.passwordTrackId
+            ?: throw MaxError("Сначала введите код из SMS")
+        val response = invoke(
+            MaxProtocol.OP_AUTH_CHECK_PASSWORD,
+            linkedMapOf(
+                "trackId" to trackId,
+                "password" to password,
+            ),
+        )
+        return remember(AuthResponse.read(response))
+    }
 
-        if (login.isNullOrEmpty()) {
-            if (response.containsKey("passwordChallenge")) {
-                throw MaxError("На аккаунте включён пароль (2FA) — вход по одному коду не проходит")
+    /** Stores whatever the step produced, so the next step -- or the service -- can use it. */
+    private fun remember(outcome: AuthOutcome): AuthOutcome {
+        when (outcome) {
+            is AuthOutcome.LoggedIn -> {
+                session.loginToken = outcome.token
+                session.authToken = null
+                session.passwordTrackId = null
+                session.passwordHint = null
             }
-            throw MaxError("MAX не вернул токен входа")
+            is AuthOutcome.PasswordRequired -> {
+                session.passwordTrackId = outcome.trackId
+                session.passwordHint = outcome.hint
+            }
+            else -> Unit
         }
-        session.loginToken = login
-        session.authToken = null
+        return outcome
     }
 
     /** Logs in with the stored token and remembers the chat list. */

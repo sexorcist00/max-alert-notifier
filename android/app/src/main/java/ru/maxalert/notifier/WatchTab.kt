@@ -33,9 +33,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.launch
+import ru.maxalert.notifier.max.AuthOutcome
 import ru.maxalert.notifier.max.MaxLogin
+import ru.maxalert.notifier.max.explain
 import ru.maxalert.notifier.max.MaxSession
 import ru.maxalert.notifier.ui.LocalAlertPalette
 import ru.maxalert.notifier.ui.Spacing
@@ -295,8 +299,13 @@ internal fun DirectConnectionCard(
 
     val vpnActive = remember(tick) { NetworkRoute.vpnActive(context) }
 
+    val passwordNeeded = remember(tick) { session.passwordTrackId != null }
+    val passwordHint = remember(tick) { session.passwordHint }
+
     var phone by remember { mutableStateOf(session.phone ?: "+7") }
     var code by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var confirmLogout by remember { mutableStateOf(false) }
@@ -314,6 +323,7 @@ internal fun DirectConnectionCard(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        MaxLogin.cancel()
                         session.clear()
                         ConnectionProbe.reset()
                         MaxWatchService.stop(context)
@@ -407,8 +417,13 @@ internal fun DirectConnectionCard(
                         error = null
                         scope.launch {
                             runCatching { MaxLogin.submitCode(context, code.trim()) }
-                                .onSuccess {
-                                    if (settings.useDirectConnection) MaxWatchService.start(context)
+                                .onSuccess { outcome ->
+                                    error = outcome.explain()
+                                    if (outcome is AuthOutcome.LoggedIn &&
+                                        settings.useDirectConnection
+                                    ) {
+                                        MaxWatchService.start(context)
+                                    }
                                 }
                                 .onFailure { error = it.message ?: "код не принят" }
                             AppRefresh.bump()
@@ -417,6 +432,74 @@ internal fun DirectConnectionCard(
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Войти") }
+            }
+
+            // MAX now asks some accounts for a login password after the code. The step only
+            // appears once the server has actually asked for it: the track id it sends is what
+            // the answer is tied to, and it is stored, so closing the app mid-login is safe.
+            if (passwordNeeded) {
+                HorizontalDivider()
+                Text(
+                    "MAX просит пароль от аккаунта — второй шаг после кода.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                passwordHint?.let { hint ->
+                    Text("Подсказка: $hint", style = MaterialTheme.typography.bodySmall)
+                }
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Пароль аккаунта MAX") },
+                    singleLine = true,
+                    visualTransformation = if (passwordVisible) VisualTransformation.None
+                    else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    trailingIcon = {
+                        TextButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Text(if (passwordVisible) "Скрыть" else "Показать", maxLines = 1)
+                        }
+                    },
+                    supportingText = {
+                        Text("Тот самый пароль, который МАКС попросил придумать при входе.")
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Button(
+                    enabled = !busy && password.isNotBlank(),
+                    onClick = {
+                        busy = true
+                        error = null
+                        scope.launch {
+                            runCatching { MaxLogin.submitPassword(context, password.trim()) }
+                                .onSuccess { outcome ->
+                                    error = outcome.explain()
+                                    if (outcome is AuthOutcome.LoggedIn) {
+                                        password = ""
+                                        if (settings.useDirectConnection) {
+                                            MaxWatchService.start(context)
+                                        }
+                                    }
+                                }
+                                .onFailure { error = it.message ?: "пароль не принят" }
+                            AppRefresh.bump()
+                            busy = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Подтвердить пароль") }
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        MaxLogin.cancel()
+                        session.passwordTrackId = null
+                        session.passwordHint = null
+                        password = ""
+                        error = null
+                        AppRefresh.bump()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Начать вход заново") }
             }
             Text(
                 when {

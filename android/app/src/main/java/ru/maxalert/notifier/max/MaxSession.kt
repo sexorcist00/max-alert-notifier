@@ -52,6 +52,16 @@ class MaxSession(context: Context) {
         get() = prefs.getString(KEY_AUTH_TOKEN, null)
         set(value) = prefs.edit().putString(KEY_AUTH_TOKEN, value).apply()
 
+    /** Ties "code accepted" to "password accepted" while MAX asks for the second factor. */
+    var passwordTrackId: String?
+        get() = prefs.getString(KEY_TRACK_ID, null)
+        set(value) = prefs.edit().putString(KEY_TRACK_ID, value).apply()
+
+    /** The reminder the user set for their MAX password, when the server sends one. */
+    var passwordHint: String?
+        get() = prefs.getString(KEY_PASSWORD_HINT, null)
+        set(value) = prefs.edit().putString(KEY_PASSWORD_HINT, value).apply()
+
     var loginToken: String?
         get() = prefs.getString(KEY_LOGIN_TOKEN, null)
         set(value) = prefs.edit().putString(KEY_LOGIN_TOKEN, value).apply()
@@ -62,6 +72,8 @@ class MaxSession(context: Context) {
     fun clear() {
         prefs.edit()
             .remove(KEY_AUTH_TOKEN)
+            .remove(KEY_TRACK_ID)
+            .remove(KEY_PASSWORD_HINT)
             .remove(KEY_LOGIN_TOKEN)
             .remove(KEY_PHONE)
             .apply()
@@ -76,6 +88,8 @@ class MaxSession(context: Context) {
         const val KEY_LAST_ONLINE = "last_online_at"
         const val KEY_PHONE = "phone"
         const val KEY_AUTH_TOKEN = "auth_token"
+        const val KEY_TRACK_ID = "password_track_id"
+        const val KEY_PASSWORD_HINT = "password_hint"
         const val KEY_LOGIN_TOKEN = "login_token"
     }
 }

@@ -37,6 +37,8 @@ object MaxProtocol {
     const val OP_AUTH_REQUEST = 17
     const val OP_AUTH = 18
     const val OP_LOGIN = 19
+    /** Second factor: the login password MAX now asks some accounts to set. */
+    const val OP_AUTH_CHECK_PASSWORD = 115
     const val OP_CHAT_HISTORY = 49
     const val OP_NOTIF_MESSAGE = 128
 

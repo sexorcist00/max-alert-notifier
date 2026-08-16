@@ -14,6 +14,7 @@ private fun status(
     loggedIn: Boolean = true,
     online: Boolean = true,
     lastOnlineAt: Long = NOW - MINUTE,
+    awaitingPassword: Boolean = false,
 ) = SessionStatus.evaluate(
     watching = watching,
     notificationAccess = notificationAccess,
@@ -22,6 +23,7 @@ private fun status(
     online = online,
     lastOnlineAt = lastOnlineAt,
     now = NOW,
+    awaitingPassword = awaitingPassword,
 )
 
 class SessionStatusNegativeCasesTest {
@@ -58,6 +60,14 @@ class SessionStatusNegativeCasesTest {
     @Test
     fun `a missing login is amber, not green`() {
         assertEquals(SessionStatus.Level.WARN, status(loggedIn = false).level)
+    }
+
+    @Test
+    fun `a login waiting for the MAX password says so instead of "not logged in"`() {
+        val result = status(loggedIn = false, awaitingPassword = true)
+
+        assertEquals(SessionStatus.Level.WARN, result.level)
+        assertTrue(result.title, result.title.contains("пароль"))
     }
 }
 

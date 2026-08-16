@@ -22,6 +22,8 @@ object SessionStatus {
         online: Boolean,
         lastOnlineAt: Long,
         now: Long,
+        /** MAX took the SMS code and is waiting for the account password. */
+        awaitingPassword: Boolean = false,
     ): Status {
         if (!watching) {
             return Status(Level.FAIL, "Дежурство выключено", "Тревога не сработает ни при каких условиях")
@@ -59,6 +61,16 @@ object SessionStatus {
             }
             val level = if (notificationAccess) Level.WARN else Level.FAIL
             return Status(level, "Нет связи с MAX", detail)
+        }
+
+        if (directEnabled && !loggedIn && awaitingPassword) {
+            // Half-way through a login is not the same as never having tried: saying "вход не
+            // выполнен" here sends the user back to the SMS step they already passed.
+            return Status(
+                Level.WARN,
+                "MAX ждёт пароль от аккаунта",
+                "Код принят — введите пароль в «Источник 2», вход на этом закончится",
+            )
         }
 
         if (directEnabled && !loggedIn) {
