@@ -202,11 +202,14 @@ object AlarmController {
      */
     private fun alarmSound(context: Context, settings: AlertSettings): Uri? {
         val configured = settings.soundUri ?: AlertSettings.DEFAULT_SOUND
+        val fallback = { bundled(context, AlertSettings.DEFAULT_SOUND.removePrefix(BUNDLED_PREFIX)) }
         if (configured.startsWith(BUNDLED_PREFIX)) {
-            return bundled(context, configured.removePrefix(BUNDLED_PREFIX))
+            // A stored name that no longer resolves must not leave the alarm silent: renaming
+            // or replacing a bundled file would otherwise turn one setting into a soundless
+            // alarm, and nobody finds that out until the night it matters.
+            return bundled(context, configured.removePrefix(BUNDLED_PREFIX)) ?: fallback()
         }
-        return runCatching { Uri.parse(configured) }.getOrNull()
-            ?: bundled(context, AlertSettings.DEFAULT_SOUND.removePrefix(BUNDLED_PREFIX))
+        return runCatching { Uri.parse(configured) }.getOrNull() ?: fallback()
     }
 
     private fun bundled(context: Context, name: String): Uri? {
