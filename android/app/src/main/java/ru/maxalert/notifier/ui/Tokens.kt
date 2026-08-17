@@ -3,7 +3,9 @@ package ru.maxalert.notifier.ui
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * Design tokens in three layers: primitive → semantic → component.
@@ -46,22 +48,82 @@ data class AlertPalette(
     val onStatus: Color,
 )
 
-/** Layer 3 — component tokens: spacing rhythm and sizes the components ask for by name. */
+/**
+ * Layer 3 — component tokens: the spacing rhythm and the sizes components ask for by name.
+ *
+ * Every value is a multiple of 4 -- the 8-point grid -- and a test enforces it. Random spacing
+ * is the fastest way for one screen to stop looking like the rest of the app; related things
+ * sit one step apart, unrelated things two.
+ */
 object Spacing {
-    val hairline: Dp = 2.dp
     val xs: Dp = 4.dp
     val sm: Dp = 8.dp
     val md: Dp = 12.dp
     val lg: Dp = 16.dp
     val xl: Dp = 24.dp
-    val xxl: Dp = 48.dp
+    val xxl: Dp = 32.dp
+    val xxxl: Dp = 48.dp
 
     /** Android's minimum touch target; anything tappable is at least this. */
     val touchTarget: Dp = 48.dp
-    val statusDot: Dp = 14.dp
+    val statusDot: Dp = 16.dp
     val bulletDot: Dp = 8.dp
-    val inlineIcon: Dp = 18.dp
+    val inlineIcon: Dp = 20.dp
     val alarmButtonHeight: Dp = 96.dp
+}
+
+/** Drawn line weights. Not spacing: a hairline is a stroke, and it stays off the grid. */
+object Strokes {
+    val hairline: Dp = 2.dp
+}
+
+/** Corner radii: one value for cards, one for anything tappable, one for pills. */
+object Radii {
+    val card: Dp = 20.dp
+    val control: Dp = 16.dp
+    val pill: Dp = 32.dp
+}
+
+/**
+ * Four sizes, two weights -- for the whole app.
+ *
+ * More than that reads as several apps stitched together, and the way this one drifted was by
+ * reaching for one more Material slot every time something needed emphasis. Hierarchy comes
+ * from these four plus [TextAlpha], never from a fifth size.
+ */
+object TypeScale {
+    val display: TextUnit = 28.sp
+    val title: TextUnit = 18.sp
+    val body: TextUnit = 15.sp
+    val caption: TextUnit = 13.sp
+
+    /**
+     * The one exception, and only on the full-screen alarm.
+     *
+     * That screen is read across a dark room by someone who has just been woken; 28sp is a
+     * reading size, not a signal. It lives here rather than as a raw 44.sp inside the screen
+     * so it stays one decision instead of a habit.
+     */
+    val hero: TextUnit = 44.sp
+    val heroLineHeight: TextUnit = 52.sp
+
+    val displayLineHeight: TextUnit = 34.sp
+    val titleLineHeight: TextUnit = 24.sp
+    val bodyLineHeight: TextUnit = 22.sp
+    val captionLineHeight: TextUnit = 18.sp
+}
+
+/**
+ * Text hierarchy by opacity rather than by another colour.
+ *
+ * [secondary] is deliberately not lower than 0.7: near-black at 0.7 on white still measures
+ * above the 4.5:1 WCAG asks of body text, and a contrast test holds it there. Supporting text
+ * nobody can read is not supporting anything.
+ */
+object TextAlpha {
+    const val PRIMARY = 1.0f
+    const val BODY = 0.85f
+    const val SECONDARY = 0.7f
 }
 
 val LightAlertPalette = AlertPalette(

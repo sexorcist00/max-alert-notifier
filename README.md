@@ -12,6 +12,7 @@
 | **[`android/`](android/)** | Приложение с интерфейсом, APK | основной вариант |
 | [`termux/`](termux/) | Скрипт на Python для Termux | запасной, для консоли |
 | [`docs/ios-plan.md`](docs/ios-plan.md) | План iOS-варианта: сервер + APNs + AlarmKit | не построено, только план |
+| [`docs/design.md`](docs/design.md) | Дизайн-система: шкала шрифтов, сетка, цвет, thumb zone | правила интерфейса |
 
 ---
 

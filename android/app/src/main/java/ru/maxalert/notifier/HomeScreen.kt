@@ -16,6 +16,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -32,6 +33,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -58,6 +60,8 @@ import kotlinx.coroutines.launch
 import ru.maxalert.notifier.max.MaxSession
 import ru.maxalert.notifier.ui.LocalAlertPalette
 import ru.maxalert.notifier.ui.Spacing
+import ru.maxalert.notifier.ui.Strokes
+import ru.maxalert.notifier.ui.TextAlpha
 
 internal val TABS = listOf("Главное", "Сигнал", "Журнал")
 
@@ -150,6 +154,7 @@ internal fun HomeScreen() {
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
             AlertStateCard()
+            ClearedCard()
             UpdateCard()
 
             when (tab) {
@@ -214,10 +219,15 @@ internal fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
             Text(
                 status.detail,
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = TextAlpha.BODY),
                 maxLines = 2,
             )
             ConnectionProbe.ageText(now)?.let { age ->
-                Text(age, style = MaterialTheme.typography.labelSmall)
+                Text(
+                    age,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = TextAlpha.SECONDARY),
+                )
             }
         }
         IconButton(
@@ -232,7 +242,7 @@ internal fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
             if (ConnectionProbe.busy) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(Spacing.inlineIcon),
-                    strokeWidth = Spacing.hairline,
+                    strokeWidth = Strokes.hairline,
                 )
             } else {
                 Icon(
@@ -318,11 +328,8 @@ internal fun UpdateCard() {
     ) {
         Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text("Есть версия ${release.version}", fontWeight = FontWeight.Bold)
-            Text(
-                "Установлена ${BuildConfig.VERSION_NAME}. Обновление ставится системным " +
-                    "установщиком — потребуется разрешение на установку из этого приложения.",
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Hint("Установлена ${BuildConfig.VERSION_NAME}. Обновление ставится системным " +
+                    "установщиком — потребуется разрешение на установку из этого приложения.")
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Button(
                     enabled = !downloading,
@@ -340,6 +347,59 @@ internal fun UpdateCard() {
             UpdateChecker.message?.let { text ->
                 Text(text, style = MaterialTheme.typography.bodySmall)
             }
+        }
+    }
+}
+
+/**
+ * The end of an alert, stated once.
+ *
+ * The peak of using this app is the alarm itself; the end used to be a card that vanished and
+ * a screen that looked as if nothing had happened. This is the closing line -- how long it
+ * stood, between which times -- in the same place the alert card occupied, so the eye finds
+ * the answer where it last saw the question. Green, because the situation is over; factual,
+ * because a warning is not an achievement to celebrate.
+ */
+@Composable
+internal fun ClearedCard() {
+    val cleared = AlertState.lastCleared ?: return
+    if (AlertState.state.active) return
+
+    val palette = LocalAlertPalette.current
+    val clock = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = palette.statusOk),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(Spacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = palette.onStatus,
+                modifier = Modifier.size(Spacing.inlineIcon),
+            )
+            Spacer(Modifier.width(Spacing.md))
+            Text(
+                AlertSummary.describe(
+                    level = cleared.level,
+                    durationMs = cleared.until - cleared.since,
+                    from = clock.format(Date(cleared.since)),
+                    to = clock.format(Date(cleared.until)),
+                    chat = cleared.chat,
+                ),
+                color = palette.onStatus,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(Spacing.sm))
+            TextButton(
+                onClick = { AlertState.dismissCleared() },
+                colors = ButtonDefaults.textButtonColors(contentColor = palette.onStatus),
+            ) { Text("Скрыть", maxLines = 1) }
         }
     }
 }

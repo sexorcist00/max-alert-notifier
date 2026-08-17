@@ -68,10 +68,38 @@ object AlertState {
         save(context)
     }
 
+    /**
+     * The alert that has just ended, and how long it stood.
+     *
+     * A cleared alert used to simply vanish, which left the one question anyone asks
+     * afterwards -- "how long was that?" -- answerable only by digging through the log. Held
+     * in memory rather than in prefs on purpose: it is the closing line of this sitting, not
+     * a record to survive a reboot.
+     */
+    data class Cleared(
+        val level: AlertLevel,
+        val chat: String,
+        val since: Long,
+        val until: Long,
+    )
+
+    var lastCleared by mutableStateOf<Cleared?>(null)
+        private set
+
     fun clear(context: Context) {
         if (!state.active) return
+        lastCleared = Cleared(
+            level = state.level,
+            chat = state.chat,
+            since = state.since,
+            until = System.currentTimeMillis(),
+        )
         state = State()
         save(context)
+    }
+
+    fun dismissCleared() {
+        lastCleared = null
     }
 
     private fun save(context: Context) {

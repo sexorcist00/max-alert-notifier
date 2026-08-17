@@ -60,10 +60,7 @@ internal fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
             },
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Проверить тревогу целиком") }
-        Text(
-            "Зазвенит по-настоящему — со звуком, вибрацией и экраном, но не дольше 30 секунд.",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        Hint("Зазвенит по-настоящему — со звуком, вибрацией и экраном, но не дольше 30 секунд.")
     }
 
     // Long radio lists pushed everything else off the screen; the choice already made is
@@ -77,11 +74,8 @@ internal fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
         )
         AnimatedVisibility(visible = patternsOpen) {
           Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(
-                "Один ритм задаёт звук, вибрацию и фонарик. Шаблоны взяты из стандартов: кто " +
-                    "слышал пожарный извещатель, узнаёт сигнал без объяснений.",
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Hint("Один ритм задаёт звук, вибрацию и фонарик. Шаблоны взяты из стандартов: кто " +
+                    "слышал пожарный извещатель, узнаёт сигнал без объяснений.")
             AlarmPattern.entries.forEach { pattern ->
                 ChoiceRow(
                     selected = settings.pattern == pattern,
@@ -139,11 +133,8 @@ internal fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Выбрать свой файл") }
         if (soundsOpen) {
-            Text(
-                "Звонок будильника из настроек телефона не используется: тревога должна " +
-                    "звучать одинаково всегда.",
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Hint("Звонок будильника из настроек телефона не используется: тревога должна " +
+                    "звучать одинаково всегда.")
         }
     }
 
@@ -166,20 +157,14 @@ internal fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
             if (value) AlarmPreview.flash(context, settings)
         }
         if (settings.flashlight) {
-            Text(
-                "Не быстрее трёх вспышек в секунду — порог мерцания WCAG 2.3.1, выше опасно при " +
-                    "фоточувствительной эпилепсии.",
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Hint("Не быстрее трёх вспышек в секунду — порог мерцания WCAG 2.3.1, выше опасно при " +
+                    "фоточувствительной эпилепсии.")
         }
         SwitchRow("Выкручивать громкость", settings.forceMaxVolume) { value ->
             update { it.copy(forceMaxVolume = value) }
         }
-        Text(
-            "Звук идёт по тревожному аудиоканалу — его не глушит «Не беспокоить». Прежняя " +
-                "громкость возвращается сразу после отбоя.",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        Hint("Звук идёт по тревожному аудиоканалу — его не глушит «Не беспокоить». Прежняя " +
+                "громкость возвращается сразу после отбоя.")
     }
 
     SectionCard("Продолжительность") {
@@ -193,9 +178,6 @@ internal fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
             options = Durations.options(Durations.COOLDOWN, settings.cooldownSeconds),
             current = settings.cooldownSeconds,
         ) { value -> update { it.copy(cooldownSeconds = value) } }
-        Text(
-            "Пауза не даёт одному и тому же сообщению поднять тревогу дважды подряд.",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        Hint("Пауза не даёт одному и тому же сообщению поднять тревогу дважды подряд.")
     }
 }

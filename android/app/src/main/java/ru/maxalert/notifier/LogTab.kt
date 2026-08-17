@@ -33,11 +33,8 @@ internal fun LogTab(settings: AlertSettings, update: ((AlertSettings) -> AlertSe
 
     SectionCard("Последние сообщения из МАКСа") {
         if (entries.isEmpty()) {
-            Text(
-                "Пока пусто. Напишите что-нибудь в нужный чат — здесь появится точное название " +
-                    "чата, которое надо вписать в фильтр.",
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Hint("Пока пусто. Напишите что-нибудь в нужный чат — здесь появится точное название " +
+                    "чата, которое надо вписать в фильтр.")
         } else {
             entries.forEach { entry ->
                 val watched = entry.chat.isNotBlank() &&

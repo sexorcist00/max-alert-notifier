@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
@@ -23,10 +24,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import ru.maxalert.notifier.ui.Spacing
-import androidx.compose.ui.unit.sp
+import ru.maxalert.notifier.ui.TypeScale
 
 /** Full-screen alarm: shows over the lock screen, wakes the display, one big STOP button. */
 class AlarmActivity : ComponentActivity() {
@@ -81,6 +82,8 @@ private fun AlarmScreen(chat: String, message: String, ringing: Boolean, onStop:
         if (!ringing) onStop()
     }
 
+    val ink = Color(AlertState.state.level.onColorArgb)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -88,41 +91,57 @@ private fun AlarmScreen(chat: String, message: String, ringing: Boolean, onStop:
             // dark room before a single word is.
             .background(Color(AlertState.state.level.colorArgb))
             .padding(Spacing.xl),
-        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = AlertState.state.level.takeIf { it != AlertLevel.NONE }?.title ?: "ТРЕВОГА",
-            color = Color(AlertState.state.level.onColorArgb),
-            fontSize = 44.sp,
-            textAlign = TextAlign.Center,
-        )
-        Column(Modifier.height(Spacing.xl)) {}
-        Text(
-            text = chat.ifBlank { "MAX" },
-            color = Color(AlertState.state.level.onColorArgb),
-            style = MaterialTheme.typography.titleLarge,
-            textAlign = TextAlign.Center,
-        )
-        Column(Modifier.height(Spacing.md)) {}
-        Text(
-            text = message,
-            color = Color(AlertState.state.level.onColorArgb),
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-        )
-        Column(Modifier.height(Spacing.xxl)) {}
+        // The message takes the room it needs; STOP is pinned to the bottom, in the thumb
+        // zone. Centred, it sat mid-screen -- the part of the phone a hand holding it cannot
+        // reach, which is a poor place for the one button someone half-awake has to find.
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = AlertState.state.level.takeIf { it != AlertLevel.NONE }?.title ?: "ТРЕВОГА",
+                color = ink,
+                fontSize = TypeScale.hero,
+                lineHeight = TypeScale.heroLineHeight,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(Spacing.xl))
+            Text(
+                text = chat.ifBlank { "MAX" },
+                color = ink,
+                style = MaterialTheme.typography.titleLarge,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(Spacing.md))
+            Text(
+                text = message,
+                color = ink,
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+            )
+        }
         Button(
             onClick = onStop,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(Spacing.alarmButtonHeight),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(AlertState.state.level.onColorArgb),
+                containerColor = ink,
                 contentColor = Color(AlertState.state.level.colorArgb),
             ),
         ) {
-            Text(text = "СТОП", fontSize = 32.sp)
+            Text(text = "СТОП", style = MaterialTheme.typography.headlineSmall)
         }
+        Spacer(Modifier.height(Spacing.sm))
+        Text(
+            text = "Звук выключится, состояние тревоги останется",
+            color = ink,
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+        )
     }
 }

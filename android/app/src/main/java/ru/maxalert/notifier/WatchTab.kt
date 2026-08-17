@@ -13,7 +13,15 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BatteryAlert
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -28,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
@@ -177,14 +186,11 @@ internal fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
 
     CollapsibleCard("Версия и обновления", BuildConfig.VERSION_NAME) {
         Text("Установлено: ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
-        Text(
-            if (BuildConfig.VERSION_NAME == "0.0.0") {
+        Hint(if (BuildConfig.VERSION_NAME == "0.0.0") {
                 "Сборка не из релиза — обновление будет предлагаться всегда."
             } else {
                 "Обновления берутся из Releases репозитория и предлагаются при запуске."
-            },
-            style = MaterialTheme.typography.bodySmall,
-        )
+            })
         OutlinedButton(
             onClick = { scope.launch { UpdateChecker.check(context, quiet = false) } },
             enabled = !UpdateChecker.busy,
@@ -196,11 +202,8 @@ internal fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
     }
 
     CollapsibleCard("Чтобы не убивала система", "Huawei закрывает фон") {
-        Text(
-            "Huawei закрывает фоновые приложения. Разрешите работу в фоне и снимите ограничения " +
-                "батареи, иначе тревога однажды не прозвенит.",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        Hint("Huawei закрывает фоновые приложения. Разрешите работу в фоне и снимите ограничения " +
+                "батареи, иначе тревога однажды не прозвенит.")
         OutlinedButton(
             onClick = { context.requestBatteryFreedom() },
             modifier = Modifier.fillMaxWidth(),
@@ -229,21 +232,19 @@ internal fun SetupCard(steps: List<SetupStep>, onAction: (SetupAction) -> Unit) 
 
     SectionCard(if (steps.isEmpty()) "Настроено" else "Осталось настроить") {
         if (steps.isEmpty()) {
-            Text(
-                "Всё на месте: чат выбран, слова заданы, доступы выданы. Проверьте тревогу на " +
-                    "вкладке «Сигнал» и можно дежурить.",
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Hint("Всё на месте: чат выбран, слова заданы, доступы выданы. Проверьте тревогу на " +
+                    "вкладке «Сигнал» и можно дежурить.")
         } else {
             steps.forEach { step ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .size(Spacing.bulletDot)
-                            .clip(CircleShape)
-                            // Red only where nothing will ring at all; the rest merely make
-                            // the watch coarse, and painting them the same hides which is which.
-                            .background(if (step.blocking) palette.statusFail else palette.statusWarn)
+                    // An icon says what the step is about before the sentence is read, and the
+                    // tint says how bad it is: red where nothing will ring at all, amber where
+                    // it only makes the watch coarse. A row of identical dots said neither.
+                    Icon(
+                        imageVector = step.action.icon(),
+                        contentDescription = null,
+                        tint = if (step.blocking) palette.statusFail else palette.statusWarn,
+                        modifier = Modifier.size(Spacing.inlineIcon),
                     )
                     Spacer(Modifier.width(Spacing.md))
                     Text(
@@ -342,10 +343,7 @@ internal fun DirectConnectionCard(
     }
 
     SectionCard("Источник 2 · своё подключение к MAX") {
-        Text(
-            "Видит сообщения, даже когда МАКС не показывает уведомление. Нужен вход по SMS.",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        Hint("Видит сообщения, даже когда МАКС не показывает уведомление. Нужен вход по SMS.")
         VpnRow(settings, vpnActive, update)
         SwitchRow("Держать подключение", settings.useDirectConnection) { value ->
             update { it.copy(useDirectConnection = value) }
@@ -544,16 +542,13 @@ private fun VpnRow(
     SwitchRow("Обходить VPN", settings.bypassVpn) { value ->
         update { it.copy(bypassVpn = value) }
     }
-    Text(
-        if (settings.bypassVpn) {
+    Hint(if (settings.bypassVpn) {
             "Только это подключение уходит мимо VPN — остальной трафик телефона остаётся в нём. " +
                 "Не поможет, если в VPN включено «блокировать соединения без VPN»: тогда " +
                 "добавьте приложение в исключения самого VPN или выключите его на время входа."
         } else {
             "Подключение идёт как весь трафик — через VPN, если он включён."
-        },
-        style = MaterialTheme.typography.bodySmall,
-    )
+        })
     if (vpnActive) {
         Text(
             if (settings.bypassVpn) "Сейчас VPN включён, обход применяется"
@@ -566,4 +561,14 @@ private fun VpnRow(
     NetworkRoute.lastRoute?.let { route ->
         Text("Последнее подключение: $route", style = MaterialTheme.typography.labelSmall)
     }
+}
+
+/** Which icon stands for a setup step. Presentation, so it lives here and not in the pure list. */
+private fun SetupAction.icon(): ImageVector = when (this) {
+    SetupAction.ENABLE_DUTY -> Icons.Filled.PowerSettingsNew
+    SetupAction.NOTIFICATION_ACCESS -> Icons.Filled.NotificationsActive
+    SetupAction.BATTERY -> Icons.Filled.BatteryAlert
+    SetupAction.CHAT -> Icons.Filled.Forum
+    SetupAction.KEYWORDS -> Icons.Filled.Tag
+    SetupAction.ALL_CLEAR -> Icons.Filled.CheckCircle
 }

@@ -42,6 +42,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import ru.maxalert.notifier.ui.Spacing
+import ru.maxalert.notifier.ui.TextAlpha
 
 @Composable
 internal fun CollapsibleCard(
@@ -216,4 +217,22 @@ internal fun PreviewButton(context: Context, soundUri: String?) {
             contentDescription = if (playing) "Остановить прослушивание" else "Прослушать сигнал",
         )
     }
+}
+
+/**
+ * Supporting text: one step down in size and in opacity.
+ *
+ * Explanations used to be full-strength text one size smaller, which put them at the same
+ * visual weight as the setting they explain. Hierarchy here comes from the opacity ladder in
+ * [TextAlpha] rather than from a grey of its own -- one that would have to be picked twice,
+ * once per theme, and would drift.
+ */
+@Composable
+internal fun Hint(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        modifier = modifier,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = TextAlpha.SECONDARY),
+    )
 }
