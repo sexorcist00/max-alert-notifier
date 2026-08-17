@@ -41,19 +41,36 @@ object ConnectionProbe {
     var checkedAt by mutableStateOf(0L)
         private set
 
+    /**
+     * Asks the server whether the session works -- but only when nothing else is using it.
+     *
+     * A second login with the same account and device id makes MAX drop the first one, and the
+     * first one is the duty connection. That is what produced a screen reading "Сессия жива,
+     * чатов видно: 7" directly above "Read error … Software caused connection abort": pressing
+     * check was itself what broke the watch, and the reconnect that followed looked like a
+     * network fault. While the duty connection is up it *is* the answer, so no second one is
+     * opened.
+     */
     suspend fun run(context: Context) {
         if (busy) return
         busy = true
         message = null
-        runCatching { MaxLogin.checkSession(context) }
-            .onSuccess { chats ->
-                ok = true
-                message = "Сессия жива, чатов видно: $chats"
-            }
-            .onFailure { error ->
-                ok = false
-                message = "Сессия недоступна: ${error.message}"
-            }
+
+        if (MaxWatchService.online) {
+            ok = true
+            message = "Сессия жива: дежурное подключение на связи"
+        } else {
+            runCatching { MaxLogin.checkSession(context) }
+                .onSuccess { chats ->
+                    ok = true
+                    message = "Сессия жива, чатов видно: $chats"
+                }
+                .onFailure { error ->
+                    ok = false
+                    message = "Сессия недоступна: ${ConnectionTrouble.humanize(error.message)}"
+                }
+        }
+
         checkedAt = System.currentTimeMillis()
         busy = false
         AppRefresh.bump()

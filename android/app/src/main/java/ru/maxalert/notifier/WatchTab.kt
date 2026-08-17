@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PowerSettingsNew
@@ -309,6 +311,7 @@ internal fun DirectConnectionCard(
     update: ((AlertSettings) -> AlertSettings) -> Unit,
 ) {
     val context = LocalContext.current
+    val palette = LocalAlertPalette.current
     val scope = rememberCoroutineScope()
     val session = remember { MaxSession(context) }
 
@@ -369,7 +372,24 @@ internal fun DirectConnectionCard(
             update { it.copy(useDirectConnection = value) }
             if (value) MaxWatchService.start(context) else MaxWatchService.stop(context)
         }
-        Text("Состояние: ${MaxWatchService.status}", style = MaterialTheme.typography.bodySmall)
+        // The state in words, and the network's own text under it -- small, dim, and only
+        // when it says something the sentence above does not.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = if (MaxWatchService.online) Icons.Filled.CloudDone
+                else Icons.Filled.CloudOff,
+                contentDescription = null,
+                tint = if (MaxWatchService.online) palette.statusOk else palette.statusWarn,
+                modifier = Modifier.size(Spacing.inlineIcon),
+            )
+            Spacer(Modifier.width(Spacing.sm))
+            Text(
+                MaxWatchService.status,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        MaxWatchService.statusDetail?.let { detail -> Hint(detail) }
 
         if (loggedIn) {
             Text("Вход выполнен: ${session.phone ?: "аккаунт MAX"}")

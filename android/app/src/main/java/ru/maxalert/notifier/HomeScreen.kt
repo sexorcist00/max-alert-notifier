@@ -59,6 +59,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -127,6 +129,10 @@ internal fun HomeScreen() {
     Scaffold(
         topBar = {
             Column {
+                // Title only. The duty switch used to live here with its label, and between
+                // the two the app's own name rendered as "Оповещение о т…". The switch moved
+                // into the status banner, which is where it belongs anyway: right next to the
+                // line that says what duty is currently doing.
                 TopAppBar(
                     title = {
                         Text(
@@ -135,22 +141,15 @@ internal fun HomeScreen() {
                             overflow = TextOverflow.Ellipsis,
                         )
                     },
-                    actions = {
-                        // The master switch belongs where it is always reachable: whether the
-                        // phone is on watch is the one thing worth knowing from any tab.
-                        Text("Дежурство", style = MaterialTheme.typography.labelLarge)
-                        Spacer(Modifier.width(Spacing.sm))
-                        Switch(
-                            checked = settings.enabled,
-                            onCheckedChange = { value ->
-                                update { it.copy(enabled = value) }
-                                if (value) MaxWatchService.start(context) else MaxWatchService.stop(context)
-                            },
-                        )
-                        Spacer(Modifier.width(Spacing.sm))
-                    },
                 )
-                StatusStrip(settings) { tab = 0 }
+                StatusStrip(
+                    settings = settings,
+                    onDuty = { value ->
+                        update { it.copy(enabled = value) }
+                        if (value) MaxWatchService.start(context) else MaxWatchService.stop(context)
+                    },
+                    onClick = { tab = 0 },
+                )
                 ThreatScale()
                 TabRow(selectedTabIndex = tab) {
                     TABS.forEachIndexed { index, spec ->
@@ -193,7 +192,11 @@ internal fun HomeScreen() {
 }
 
 @Composable
-internal fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
+internal fun StatusStrip(
+    settings: AlertSettings,
+    onDuty: (Boolean) -> Unit,
+    onClick: () -> Unit,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val session = remember { MaxSession(context) }
@@ -303,6 +306,12 @@ internal fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
                 )
             }
         }
+        Switch(
+            checked = settings.enabled,
+            onCheckedChange = onDuty,
+            modifier = Modifier.semantics { contentDescription = "Дежурство" },
+        )
+        Spacer(Modifier.width(Spacing.sm))
     }
 }
 

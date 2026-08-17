@@ -19,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import java.io.IOException
 import kotlinx.coroutines.launch
 import ru.maxalert.notifier.max.IncomingMaxMessage
 import ru.maxalert.notifier.max.MaxClient
@@ -125,7 +126,11 @@ class MaxWatchService : Service() {
                 catchUp(active, settings)
                 updateStatus(getString(R.string.watch_online))
                 backoff = 5_000L
-                while (running) delay(60_000)
+                // Watch the socket, do not sleep through its death. This loop used to wait in
+                // 60 s steps, so a connection dropped one second in was noticed a minute
+                // later -- a minute in which the second source was silently not watching.
+                while (running && active.connected) delay(CONNECTION_WATCH_MS)
+                if (running) throw IOException("соединение потеряно")
             } catch (error: Throwable) {
                 Log.w(TAG, "max connection failed: ${error.message}")
                 updateStatus(getString(R.string.watch_reconnect, backoff / 1000))
@@ -173,10 +178,19 @@ class MaxWatchService : Service() {
         online = state == MaxClient.State.ONLINE
         if (online) session.lastOnlineAt = System.currentTimeMillis()
         when (state) {
-            MaxClient.State.ONLINE -> updateStatus(getString(R.string.watch_online))
+            MaxClient.State.ONLINE -> {
+                statusDetail = null
+                updateStatus(getString(R.string.watch_online))
+            }
             MaxClient.State.CONNECTING -> updateStatus(getString(R.string.watch_connecting))
             MaxClient.State.NEEDS_LOGIN -> updateStatus(getString(R.string.watch_needs_login))
-            MaxClient.State.OFFLINE -> updateStatus(detail ?: getString(R.string.watch_offline))
+            MaxClient.State.OFFLINE -> {
+                statusDetail = ConnectionTrouble.detail(detail)
+                updateStatus(
+                    if (detail == null) getString(R.string.watch_offline)
+                    else ConnectionTrouble.humanize(detail)
+                )
+            }
         }
     }
 
@@ -301,6 +315,8 @@ class MaxWatchService : Service() {
         private const val NOTIFICATION_ID = 4241
         private const val MAX_BACKOFF_MS = 300_000L
         private const val NEEDS_LOGIN_RETRY_MS = 60_000L
+        /** How often the duty loop checks that its socket is still alive. */
+        private const val CONNECTION_WATCH_MS = 2_000L
         private const val IDLE_POLL_MS = 30_000L
         private val TIME_FORMAT = SimpleDateFormat("HH:mm", Locale.getDefault())
 
@@ -309,6 +325,10 @@ class MaxWatchService : Service() {
         const val ACTION_CLEAR_ALERT = "ru.maxalert.notifier.CLEAR_ALERT"
 
         var status by mutableStateOf("выключено")
+            private set
+
+        /** The raw network wording behind [status], when there is one worth reporting. */
+        var statusDetail by mutableStateOf<String?>(null)
             private set
         var running by mutableStateOf(false)
             private set
