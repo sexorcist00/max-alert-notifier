@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -16,7 +17,16 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -48,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,7 +74,14 @@ import ru.maxalert.notifier.ui.Spacing
 import ru.maxalert.notifier.ui.Strokes
 import ru.maxalert.notifier.ui.TextAlpha
 
-internal val TABS = listOf("Главное", "Сигнал", "Журнал")
+/** A tab is a place, and an icon says which place faster than the word does. */
+internal data class TabSpec(val title: String, val icon: ImageVector)
+
+internal val TABS = listOf(
+    TabSpec("Главное", Icons.Filled.Shield),
+    TabSpec("Сигнал", Icons.AutoMirrored.Filled.VolumeUp),
+    TabSpec("Журнал", Icons.Filled.History),
+)
 
 /**
  * Three screens instead of one long scroll: how it sounds, what it watches, what it saw.
@@ -133,12 +151,20 @@ internal fun HomeScreen() {
                     },
                 )
                 StatusStrip(settings) { tab = 0 }
+                ThreatScale()
                 TabRow(selectedTabIndex = tab) {
-                    TABS.forEachIndexed { index, title ->
+                    TABS.forEachIndexed { index, spec ->
                         Tab(
                             selected = tab == index,
                             onClick = { tab = index },
-                            text = { Text(title) },
+                            text = { Text(spec.title, maxLines = 1) },
+                            icon = {
+                                Icon(
+                                    imageVector = spec.icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(Spacing.inlineIcon),
+                                )
+                            },
                         )
                     }
                 }
@@ -198,23 +224,40 @@ internal fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            // A tint of the status colour rather than a neutral strip: this line is the first
+            // thing looked at, and on a threat screen its colour is half the message.
+            .background(color.copy(alpha = 0.12f))
             .selectable(selected = false, onClick = onClick)
-            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            .padding(end = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // The accent bar carries the colour at full strength, where a 12% tint cannot.
         Box(
             Modifier
-                .size(Spacing.statusDot)
-                .clip(CircleShape)
+                .width(Spacing.xs)
+                .height(Spacing.xxl)
                 .background(color)
         )
         Spacer(Modifier.width(Spacing.md))
-        Column(Modifier.weight(1f)) {
+        Icon(
+            imageVector = when (status.level) {
+                SessionStatus.Level.OK -> Icons.Filled.Shield
+                SessionStatus.Level.WARN -> Icons.Filled.Warning
+                SessionStatus.Level.FAIL -> Icons.Filled.Error
+            },
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(Spacing.inlineIcon),
+        )
+        Spacer(Modifier.width(Spacing.md))
+        Column(
+            Modifier
+                .weight(1f)
+                .padding(vertical = Spacing.md)
+        ) {
             Text(
                 status.title,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.labelLarge,
             )
             Text(
                 status.detail,
@@ -223,11 +266,20 @@ internal fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
                 maxLines = 2,
             )
             ConnectionProbe.ageText(now)?.let { age ->
-                Text(
-                    age,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = TextAlpha.SECONDARY),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Schedule,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = TextAlpha.SECONDARY),
+                        modifier = Modifier.size(Spacing.bulletDot * 1.5f),
+                    )
+                    Spacer(Modifier.width(Spacing.xs))
+                    Text(
+                        age,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = TextAlpha.SECONDARY),
+                    )
+                }
             }
         }
         IconButton(
@@ -254,6 +306,54 @@ internal fun StatusStrip(settings: AlertSettings, onClick: () -> Unit) {
     }
 }
 
+/**
+ * Where the situation stands, on the scale it stands on.
+ *
+ * Four segments, the current one filled and named. A single coloured card answers "is there an
+ * alert"; it does not answer "how bad, out of what" -- which is the question a threat display
+ * exists for, and the reason every real one shows the whole ladder rather than today's rung.
+ */
+@Composable
+internal fun ThreatScale() {
+    val current = AlertState.state.level
+    val palette = LocalAlertPalette.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        AlertLevel.entries.forEach { level ->
+            val active = level == current
+            val tone = if (level == AlertLevel.NONE) palette.statusOk else Color(level.colorArgb)
+            Column(
+                modifier = Modifier.weight(if (active) 1.6f else 1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(Spacing.xs)
+                        .clip(CircleShape)
+                        .background(if (active) tone else tone.copy(alpha = 0.22f))
+                )
+                if (active) {
+                    Spacer(Modifier.height(Spacing.xs))
+                    Text(
+                        level.shortTitle,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = tone,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 internal fun AlertStateCard() {
     val context = LocalContext.current
@@ -267,19 +367,53 @@ internal fun AlertStateCard() {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Text(
-                state.level.title,
-                color = Color(state.level.onColorArgb),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
-            Text("${state.chat}: ${state.text}", color = Color(state.level.onColorArgb))
-            Text(
-                "Объявлен ${format.format(Date(state.since))}" +
-                    if (state.silenced) " · звук выключен, состояние держится" else "",
-                color = Color(state.level.onColorArgb),
-                style = MaterialTheme.typography.bodySmall,
-            )
+            // The level, with the sign of what it is: at a glance from across the room the
+            // icon and the colour carry the message, and the words confirm it.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (state.level.rings) Icons.Filled.Campaign else Icons.Filled.Warning,
+                    contentDescription = null,
+                    tint = Color(state.level.onColorArgb),
+                    modifier = Modifier.size(Spacing.xxl)
+                )
+                Spacer(Modifier.width(Spacing.md))
+                Text(
+                    state.level.title,
+                    color = Color(state.level.onColorArgb),
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(
+                    imageVector = Icons.Filled.Forum,
+                    contentDescription = null,
+                    tint = Color(state.level.onColorArgb),
+                    modifier = Modifier.size(Spacing.inlineIcon),
+                )
+                Spacer(Modifier.width(Spacing.sm))
+                Text(
+                    "${state.chat}: ${state.text}",
+                    color = Color(state.level.onColorArgb),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (state.silenced) Icons.AutoMirrored.Filled.VolumeOff else Icons.Filled.Schedule,
+                    contentDescription = null,
+                    tint = Color(state.level.onColorArgb),
+                    modifier = Modifier.size(Spacing.inlineIcon),
+                )
+                Spacer(Modifier.width(Spacing.sm))
+                Text(
+                    "Объявлен ${format.format(Date(state.since))}" +
+                        if (state.silenced) " · звук выключен, состояние держится" else "",
+                    color = Color(state.level.onColorArgb),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f),
+                )
+            }
             val onCard = ButtonDefaults.buttonColors(
                 containerColor = Color(state.level.onColorArgb),
                 contentColor = Color(state.level.colorArgb),

@@ -15,6 +15,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.Lan
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -94,7 +99,11 @@ internal fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
 
     // Open when there is nothing left to fix -- then it is the answer to "what will it do".
     // While steps remain, it is reference material and should not stand in front of them.
-    CollapsibleCard("Что сейчас настроено", startOpen = steps.isEmpty()) {
+    CollapsibleCard(
+        title = "Что сейчас настроено",
+        startOpen = steps.isEmpty(),
+        icon = Icons.Filled.Description,
+    ) {
         Text(
             ConfigSummary.describe(
                 settings,
@@ -108,7 +117,7 @@ internal fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
     AccessCard(context)
     DirectConnectionCard(settings, update)
 
-    SectionCard("Что ловим") {
+    SectionCard("Что ловим", icon = Icons.Filled.FilterAlt) {
         OutlinedTextField(
             value = settings.chatFilter,
             onValueChange = { value -> update { it.copy(chatFilter = value) } },
@@ -184,7 +193,11 @@ internal fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
         )
     }
 
-    CollapsibleCard("Версия и обновления", BuildConfig.VERSION_NAME) {
+    CollapsibleCard(
+        title = "Версия и обновления",
+        subtitle = BuildConfig.VERSION_NAME,
+        icon = Icons.Filled.SystemUpdate,
+    ) {
         Text("Установлено: ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
         Hint(if (BuildConfig.VERSION_NAME == "0.0.0") {
                 "Сборка не из релиза — обновление будет предлагаться всегда."
@@ -201,7 +214,11 @@ internal fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
         }
     }
 
-    CollapsibleCard("Чтобы не убивала система", "Huawei закрывает фон") {
+    CollapsibleCard(
+        title = "Чтобы не убивала система",
+        subtitle = "Huawei закрывает фон",
+        icon = Icons.Filled.BatteryAlert,
+    ) {
         Hint("Huawei закрывает фоновые приложения. Разрешите работу в фоне и снимите ограничения " +
                 "батареи, иначе тревога однажды не прозвенит.")
         OutlinedButton(
@@ -230,7 +247,10 @@ internal fun WatchTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
 internal fun SetupCard(steps: List<SetupStep>, onAction: (SetupAction) -> Unit) {
     val palette = LocalAlertPalette.current
 
-    SectionCard(if (steps.isEmpty()) "Настроено" else "Осталось настроить") {
+    SectionCard(
+        title = if (steps.isEmpty()) "Настроено" else "Осталось настроить",
+        icon = if (steps.isEmpty()) Icons.Filled.CheckCircle else Icons.Filled.Warning,
+    ) {
         if (steps.isEmpty()) {
             Hint("Всё на месте: чат выбран, слова заданы, доступы выданы. Проверьте тревогу на " +
                     "вкладке «Сигнал» и можно дежурить.")
@@ -267,7 +287,7 @@ internal fun AccessCard(context: Context) {
     val granted = NotificationManagerCompat.getEnabledListenerPackages(context)
         .contains(context.packageName)
 
-    SectionCard("Источник 1 · уведомления МАКСа") {
+    SectionCard("Источник 1 · уведомления МАКСа", icon = Icons.Filled.NotificationsActive) {
         Text(
             if (granted) "Доступ выдан — ловлю уведомления мгновенно"
             else "Нет доступа: без него уведомления МАКСа не видны",
@@ -342,7 +362,7 @@ internal fun DirectConnectionCard(
         )
     }
 
-    SectionCard("Источник 2 · своё подключение к MAX") {
+    SectionCard("Источник 2 · своё подключение к MAX", icon = Icons.Filled.Lan) {
         Hint("Видит сообщения, даже когда МАКС не показывает уведомление. Нужен вход по SMS.")
         VpnRow(settings, vpnActive, update)
         SwitchRow("Держать подключение", settings.useDirectConnection) { value ->

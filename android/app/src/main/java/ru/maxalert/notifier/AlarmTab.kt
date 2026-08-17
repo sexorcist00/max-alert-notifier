@@ -10,6 +10,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -44,7 +50,7 @@ internal fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
     // The reason to open this tab is to find out how it will sound, so the button that shows
     // it comes first. It used to sit at the bottom of "Продолжительность", where nothing about
     // the heading suggested a full rehearsal was hiding under it.
-    SectionCard("Проверка") {
+    SectionCard("Проверка", icon = Icons.Filled.PlayCircle) {
         Button(
             onClick = {
                 AlarmPreview.stop(context)
@@ -65,7 +71,7 @@ internal fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
 
     // Long radio lists pushed everything else off the screen; the choice already made is
     // shown as one line, and the list opens only when there is a choice to change.
-    SectionCard("Ритм") {
+    SectionCard("Ритм", icon = Icons.Filled.GraphicEq) {
         CurrentChoiceRow(
             value = settings.pattern.label,
             note = settings.pattern.standard,
@@ -97,7 +103,7 @@ internal fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
         }
     }
 
-    SectionCard("Звук") {
+    SectionCard("Звук", icon = Icons.AutoMirrored.Filled.VolumeUp) {
         CurrentChoiceRow(
             value = AlarmSounds.CATALOGUE.firstOrNull { it.uri == settings.soundUri }?.label
                 ?: "Свой файл",
@@ -138,7 +144,7 @@ internal fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
         }
     }
 
-    SectionCard("Вибрация и свет") {
+    SectionCard("Вибрация и свет", icon = Icons.Filled.Vibration) {
         SwitchRow("Вибрация", settings.vibrate) { value -> update { it.copy(vibrate = value) } }
         if (settings.vibrate) {
             Text("Сила: ${settings.vibrationStrength}%", style = MaterialTheme.typography.bodySmall)
@@ -167,7 +173,7 @@ internal fun AlarmTab(settings: AlertSettings, update: ((AlertSettings) -> Alert
                 "громкость возвращается сразу после отбоя.")
     }
 
-    SectionCard("Продолжительность") {
+    SectionCard("Продолжительность", icon = Icons.Filled.Timer) {
         DurationChoice(
             label = "Звонить не дольше",
             options = Durations.options(Durations.ALARM_LIMIT, settings.loopSeconds),

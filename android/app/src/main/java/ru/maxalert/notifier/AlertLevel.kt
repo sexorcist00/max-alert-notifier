@@ -17,6 +17,15 @@ enum class AlertLevel(
     YELLOW_HIGH("yellow_high", "Код жёлтый повышенный", false),
     RED("red", "КОД КРАСНЫЙ", true);
 
+    /** For the threat ladder, where four full titles do not fit across a phone. */
+    val shortTitle: String
+        get() = when (this) {
+            NONE -> "Спокойно"
+            YELLOW -> "Жёлтый"
+            YELLOW_HIGH -> "Жёлтый+"
+            RED -> "КРАСНЫЙ"
+        }
+
     /** Red for red, amber for both yellows -- the colour has to match the word. */
     val colorArgb: Long
         get() = when (this) {

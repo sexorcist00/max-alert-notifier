@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -49,6 +50,7 @@ internal fun CollapsibleCard(
     title: String,
     subtitle: String? = null,
     startOpen: Boolean = false,
+    icon: ImageVector? = null,
     content: @Composable () -> Unit,
 ) {
     // Keyed on startOpen: when the reason to keep it shut goes away, the card opens itself.
@@ -61,9 +63,24 @@ internal fun CollapsibleCard(
                     .selectable(selected = open, onClick = { open = !open }),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                icon?.let { vector ->
+                    Icon(
+                        imageVector = vector,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = TextAlpha.SECONDARY),
+                        modifier = Modifier.size(Spacing.inlineIcon),
+                    )
+                    Spacer(Modifier.width(Spacing.sm))
+                }
                 Column(Modifier.weight(1f)) {
                     Text(title, style = MaterialTheme.typography.titleMedium)
-                    subtitle?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+                    subtitle?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = TextAlpha.SECONDARY),
+                        )
+                    }
                 }
                 Text(if (open) "Свернуть" else "Открыть", style = MaterialTheme.typography.labelLarge)
             }
@@ -74,11 +91,32 @@ internal fun CollapsibleCard(
     }
 }
 
+/**
+ * A card with a heading, and optionally the icon of what the heading is about.
+ *
+ * The icon is not decoration: on a screen of eight stacked cards it is what lets someone find
+ * the sound settings without reading four headings on the way there.
+ */
 @Composable
-internal fun SectionCard(title: String, content: @Composable () -> Unit) {
+internal fun SectionCard(
+    title: String,
+    icon: ImageVector? = null,
+    content: @Composable () -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                icon?.let { vector ->
+                    Icon(
+                        imageVector = vector,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = TextAlpha.SECONDARY),
+                        modifier = Modifier.size(Spacing.inlineIcon),
+                    )
+                    Spacer(Modifier.width(Spacing.sm))
+                }
+                Text(title, style = MaterialTheme.typography.titleMedium)
+            }
             content()
         }
     }
