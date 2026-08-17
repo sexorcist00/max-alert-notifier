@@ -10,10 +10,10 @@
 # Every source is CC0, checked through the archive.org metadata API before download, so the
 # APK carries no obligation it cannot meet from a settings screen. Provenance: docs/sounds.md.
 #
-# WIKIMEDIA is the better source and is listed second: Techtonic's civil-defence recordings are
-# cleaner than 1940s-70s studio tape. They are commented out because upload.wikimedia.org
-# answered 429 with retry-after 600 to this build environment's shared egress address on every
-# attempt. Swap the blocks when it is reachable and re-run.
+# Wikimedia serves the air-raid wail; everything else comes from archive.org because
+# upload.wikimedia.org answered 429 with retry-after 600 to this build environment's shared
+# egress address on nearly every attempt. Two cleaner public-domain recordings are listed
+# commented out below -- swap them in when that host is reachable and re-run.
 #
 # Processing, identical for every file so the catalogue is consistent:
 #   - mono 44.1 kHz: an alarm is not a stereo experience, and mono halves the size
@@ -37,7 +37,7 @@ trap 'rm -rf "$WORK"' EXIT
 # swells for the wailing sirens, one clean cycle for the electronic ones.
 SOURCES=$(cat <<'LIST'
 alarm_missile|https://archive.org/download/skuska-siren-2022/Spred%20LOMu.mp3|92.4|14.0
-alarm_air_raid|https://archive.org/download/GOLD_TAPE_44_Sirens/G44-02-Air%20Raid%20Siren.flac|8.0|12.0
+alarm_air_raid|https://upload.wikimedia.org/wikipedia/commons/f/fe/%D7%90%D7%96%D7%A2%D7%A7%D7%94.ogg|0.2|6.9
 alarm_siren|https://archive.org/download/GOLD_TAPE_44_Sirens/G44-07-Emergency%20Siren.flac|5.5|9.0
 alarm_klaxon|https://archive.org/download/GOLD_TAPE_44_Sirens/G44-05-Warbling%20Boat%20Siren.flac|2.4|8.0
 LIST

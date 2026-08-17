@@ -17,20 +17,23 @@
 | Файл | Название в приложении | Источник | Лицензия |
 | --- | --- | --- | --- |
 | `alarm_missile.ogg` | Ракетная опасность | [Skúška sirén, Petržalka, Bratislava](https://archive.org/details/skuska-siren-2022) — Jonáš Gruska, проверка системы оповещения | CC0 |
-| `alarm_air_raid.ogg` | Воздушная тревога | [GOLD TAPE: 44 Sirens](https://archive.org/details/GOLD_TAPE_44_Sirens), дорожка «Air Raid Siren» (USC Cinema / Sunset Editorial Collection, залито Internet Archive) | CC0 |
+| `alarm_air_raid.ogg` | Воздушная тревога | [אזעקה.ogg](https://commons.wikimedia.org/wiki/File:%D7%90%D7%96%D7%A2%D7%A7%D7%94.ogg), Wikimedia Commons — настоящий сигнал воздушной тревоги, вой 359 → 859 Гц с периодом ~7 с | CC0 |
 | `alarm_siren.ogg` | Постоянный тон | там же, дорожка «Emergency Siren» | CC0 |
 | `alarm_klaxon.ogg` | Низкий горн | там же, дорожка «Warbling Boat Siren» | CC0 |
 
 **Только CC0** — никаких обязательств, которые приложению с экраном настроек нечем выполнять. Лицензии
 проверены через API archive.org перед скачиванием, а не по виду страницы.
 
-Честно о качестве источников: на Wikimedia Commons есть более чистые записи сирен гражданской обороны
-в public domain (`Civil-defense-siren-waver.ogg`, `Civil-defense-siren-constant.ogg`), и именно они были
-первым выбором — но `upload.wikimedia.org` отвечал `429 Too Many Requests` с `retry-after: 600` на общий
-исходящий адрес сборочной среды и не отдал файлы ни с одной из шести попыток. Взяты CC0-записи с
-archive.org: две из них — старая студийная плёнка с шумом, поэтому в обработке есть шумоподавление.
-Скрипт [`android/tools/fetch_real_sirens.sh`](../android/tools/fetch_real_sirens.sh) знает оба набора
-источников — когда Wikimedia доступна, файлы можно пересобрать одной командой.
+Честно о том, как набирались источники: `upload.wikimedia.org` почти всё время отвечал сборочной среде
+`429 Too Many Requests` с `retry-after: 600` — общий исходящий адрес. Из пяти намеченных файлов Commons
+отдал один, и это как раз самый нужный: **воющая сирена воздушной тревоги** (CC0), которая теперь и стоит
+на этом сигнале. Остальные три взяты с archive.org под CC0; две из них — студийная плёнка 1940–70-х, там
+слышно шипение, поэтому в обработке есть шумоподавление.
+
+Что можно улучшить, когда Wikimedia доступна: `Civil-defense-siren-waver.ogg` и
+`Civil-defense-siren-constant.ogg` (public domain, чище плёнки) — оба прописаны в
+[`android/tools/fetch_real_sirens.sh`](../android/tools/fetch_real_sirens.sh) закомментированными,
+пересборка одной командой.
 
 ### Обработка — одинаковая для всех, чтобы каталог был однородным
 
